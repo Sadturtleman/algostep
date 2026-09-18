@@ -2,7 +2,7 @@
 
 ## 서버·웹
 
-1. Node 24와 npm 의존성을 설치하고 `.env.example`을 `.env`로 복사한다.
+1. Node 24.19 이상과 npm 의존성을 설치하고 `.env.example`을 `.env`로 복사한다.
 2. Google OAuth 웹 클라이언트의 허용 출처를 설정하고 `GOOGLE_CLIENT_ID`를 넣는다. 로그인용 ID 토큰과 Drive용 액세스 토큰은 분리한다.
 3. `SESSION_SECRET`, `RUNNER_TOKEN`은 서로 다른 32자 이상의 난수로 설정한다. 저장소·로그·클라이언트 번들에 넣지 않는다.
 4. 운영은 `DATABASE_URL`, HTTPS `WEB_ORIGIN`, `NODE_ENV=production`을 사용한다. 초기 스키마 적용 계정과 운영 DB 계정은 배포 시 분리하는 것이 필요하다.

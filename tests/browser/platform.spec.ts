@@ -68,6 +68,12 @@ test("workspace autosaves and queues a real request without fabricated execution
     page.getByRole("button", { name: "현재 코드 리뷰 요청" }),
   ).toBeDisabled();
   await page.screenshot({ path: "test-results/workspace.png", fullPage: true });
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "PDF", exact: true }).click();
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  await download.saveAs("test-results/record.pdf");
+  expect(await download.failure()).toBeNull();
   await page.getByRole("button", { name: "내 기록", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "정렬된 배열에서 값 찾기" }),

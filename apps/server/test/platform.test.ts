@@ -11,6 +11,7 @@ import {
   cleanExpired,
 } from "../src/domain.js";
 import { processReview } from "../src/review-worker.js";
+import { snapshotSvg } from "../src/snapshot-svg.js";
 let db: DB, app: Awaited<ReturnType<typeof createApp>>;
 const origin = "http://localhost:5173",
   runner = "test-runner-token-with-more-than-32-characters";
@@ -344,6 +345,17 @@ test("free complexity analysis never invents bounds for unknown code", () => {
   assert.equal(
     analysis("python", "x", "x", { complexity: "O(n)|O(n)" }).time,
     "O(n)",
+  );
+});
+test("PDF snapshots escape untrusted labels and ignore invalid graph edges", () => {
+  const svg = snapshotSvg(
+    { locals: { values: ["<script>alert(1)</script>"] } },
+    "tree",
+  );
+  assert.ok(!svg.includes("<script>"));
+  assert.ok(svg.includes("&lt;script&gt;"));
+  assert.doesNotThrow(() =>
+    snapshotSvg({ locals: { graph: [[999, -1, "bad"], []] } }, "bfs"),
   );
 });
 test("quiz hides answer until submission and repeated request returns original result", async () => {

@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
 import { DomainError } from "./domain.js";
+import { snapshotSvg } from "./snapshot-svg.js";
 const esc = (s: any) =>
   String(s ?? "").replace(
     /[&<>"']/g,
@@ -41,7 +42,7 @@ export async function renderPdf({ record, problem, execution, reviews }: any) {
                 .filter((n, j, a) => a.indexOf(n) === j && t.trace?.[n])
                 .map(
                   (n) =>
-                    `<pre>${esc(JSON.stringify(t.trace[n], null, 2))}</pre>`,
+                    `<p>${esc(t.trace[n].line)}번째 줄</p>${snapshotSvg(t.trace[n], problem.topic_id)}<pre>${esc(JSON.stringify(t.trace[n], null, 2))}</pre>`,
                 )
                 .join("") ||
               "<p>이 실행에는 수집된 시각화 데이터가 없습니다.</p>"

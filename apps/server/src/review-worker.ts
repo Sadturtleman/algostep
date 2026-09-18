@@ -17,7 +17,10 @@ export async function processReview(
       )
     ).rows[0];
     if (!r) return null;
-    await tx.query("UPDATE reviews SET status='RUNNING' WHERE id=$1", [r.id]);
+    await tx.query(
+      "UPDATE reviews SET status='RUNNING',started_at=now() WHERE id=$1",
+      [r.id],
+    );
     return r;
   });
   if (!task) return false;
@@ -98,7 +101,7 @@ export async function recoverReviews(db: DB) {
   await db.tx(async (tx) => {
     const pending = (
       await tx.query(
-        "SELECT * FROM reviews WHERE status='RUNNING' AND created_at<now()-interval '5 minutes' FOR UPDATE",
+        "SELECT * FROM reviews WHERE status='RUNNING' AND started_at<now()-interval '5 minutes' FOR UPDATE",
       )
     ).rows;
     for (const r of pending) await releaseReview(tx, r, "REVIEW_INTERRUPTED");
