@@ -13,6 +13,17 @@ const escape = (v: unknown) =>
         })[c]!,
     );
 export function snapshotSvg(frame: any, topic: string): string {
+  const raw = frame?.locals ?? {};
+  frame = {
+    ...frame,
+    locals: {
+      ...raw,
+      graph: raw.graph ?? raw.g,
+      values: raw.values ?? raw.a,
+      index: raw.index ?? raw.i,
+      current: raw.current ?? raw.v,
+    },
+  };
   const v = frame?.locals ?? {},
     positions: { x: number; y: number }[] = [];
   let nodes: unknown[] = [],

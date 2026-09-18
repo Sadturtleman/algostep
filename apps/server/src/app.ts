@@ -69,7 +69,7 @@ const resultInput = z.object({
       }),
     )
     .max(100),
-  traceSupport: z.enum(["PYTHON", "UNSUPPORTED"]),
+  traceSupport: z.enum(["PYTHON", "GDB", "JDI", "UNSUPPORTED"]),
   runnerImage: z.string().max(256),
 });
 export async function createApp(c: Config) {

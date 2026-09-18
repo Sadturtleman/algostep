@@ -108,6 +108,16 @@ export function TraceViewer({
   );
 }
 function Structure({ vars, topic }: { vars: any; topic: string }) {
+  // Recognized names from the curated examples; arbitrary names remain in the variable view.
+  vars = {
+    ...vars,
+    graph: vars.graph ?? vars.g,
+    visited: vars.visited ?? vars.seen,
+    queue: vars.queue ?? vars.q,
+    values: vars.values ?? vars.a,
+    index: vars.index ?? vars.i,
+    current: vars.current ?? vars.v,
+  };
   if (
     topic === "bfs" &&
     Array.isArray(vars.graph) &&

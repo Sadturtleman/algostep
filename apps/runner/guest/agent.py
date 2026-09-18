@@ -43,10 +43,10 @@ def execute(job):
     (WORK/name).write_text(job['source'],encoding='utf-8')
     limit=job['limits'];memory=limit['memoryBytes'];tests=[]
     if lang!='python':
-        cmd=['g++','-std=c++20','-O0','-g','main.cpp','-o','main'] if lang=='cpp' else ['javac','-J-Xmx256m','Main.java']
+        cmd=['g++','-std=c++20','-O0','-g','main.cpp','-o','main'] if lang=='cpp' else ['javac','-g','-J-Xmx256m','Main.java']
         status,out,err,ms,peak=run(cmd,'',limit['compileMs']/1000,limit['outputBytes'],memory,compiling=True)
         if status!='OK':return {'verdict':'CE','diagnostics':err or status,'tests':[],'traceSupport':'UNSUPPORTED','runnerImage':IMAGE}
-    command={'python':['python3.10','/trace.py'],'cpp':['./main'],'java':['java','-Xmx256m','-XX:MaxMetaspaceSize=128m','-XX:ReservedCodeCacheSize=32m','-XX:+UseSerialGC','-XX:ActiveProcessorCount=1','Main']}[lang]
+    command={'python':['python3.10','main.py'],'cpp':['./main'],'java':['java','-Xmx256m','-XX:MaxMetaspaceSize=128m','-XX:ReservedCodeCacheSize=32m','-XX:+UseSerialGC','-XX:ActiveProcessorCount=1','Main']}[lang]
     for case in job['tests']:
         # Remove mutable user files between tests; preserve only submitted source and compiled artifacts.
         for entry in WORK.iterdir():
@@ -56,14 +56,17 @@ def execute(job):
         status,out,err,ms,peak=run(command,case['input'],limit['testMs']/1000,limit['outputBytes'],memory)
         expected=case['expected'];verdict=status if status!='OK' else 'COMPLETED' if expected is None else 'AC' if out==expected else 'WA'
         trace=[]
-        if lang=='python':
+        if status=='OK':
+            debug={'python':['python3.10','/trace.py'],'cpp':['gdb','-q','-batch','-x','/gdb_trace.py','./main'],'java':['java','-Xmx128m','-XX:+UseSerialGC','--add-modules','jdk.jdi','-cp','/opt/tracer','JdiTrace']}[lang]
+            # Separate tracing run; never use debugger timing or output for judging.
+            run(debug,case['input'],limit['testMs']/1000,limit['outputBytes'],memory)
             try:
                 raw=(WORK/'trace.json').read_bytes()
                 if len(raw)<=800000:trace=json.loads(raw)
             except (OSError,ValueError):pass
         tests.append({'input':case['input'],'expected':expected,'actual':out,'stderr':err,'verdict':verdict,'elapsedMs':ms,'peakMemoryBytes':peak,'trace':trace,'traceTruncated':len(trace)>=limit['traceSteps'] or (WORK/'trace-truncated').exists()})
     verdict=next((x['verdict'] for x in tests if x['verdict'] not in ('AC','COMPLETED')),'COMPLETED' if any(x['expected'] is None for x in tests) else 'AC')
-    return {'verdict':verdict,'tests':tests,'traceSupport':'PYTHON' if lang=='python' else 'UNSUPPORTED','runnerImage':IMAGE}
+    return {'verdict':verdict,'tests':tests,'traceSupport':{'python':'PYTHON','cpp':'GDB','java':'JDI'}[lang],'runnerImage':IMAGE}
 server=socket.socket(socket.AF_VSOCK,socket.SOCK_STREAM);server.bind((socket.VMADDR_CID_ANY,5000));server.listen(1)
 connection,_=server.accept()
 with connection:
