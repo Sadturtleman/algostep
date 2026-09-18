@@ -1,0 +1,10 @@
+{
+  "name": "@algostep/runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsc --project tsconfig.build.json",
+    "start": "node --env-file-if-exists=../../.env dist/index.js"
+  }
+}

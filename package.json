@@ -1,0 +1,32 @@
+{
+  "name": "algostep",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/web",
+    "apps/server",
+    "apps/runner"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/server && npm run build -w apps/web && npm run build -w apps/runner",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test apps/server/test/*.test.ts apps/runner/test/*.test.ts",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm test && npm run build",
+    "format": "prettier --write apps tests playwright.config.ts package.json tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "concurrently": "^9.0.0",
+    "prettier": "^3.9.8",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
