@@ -1,6 +1,11 @@
 name: Isolated VM smoke
 on:
   workflow_dispatch:
+    inputs:
+      boundary_only:
+        description: Run only grading, resource and network boundary cases
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -33,5 +38,7 @@ jobs:
           bash apps/runner/build-rootfs.sh
           python3 scripts/download-test-kernel.py
       - name: Execute reference programs in disposable VMs
+        env:
+          BOUNDARY_ONLY: ${{ inputs.boundary_only && '1' || '0' }}
         run: |
-          sudo env PATH="$PATH" KERNEL_PATH="$PWD/apps/runner/images/vmlinux" ROOTFS_PATH="$PWD/apps/runner/images/rootfs.ext4" RUNNER_WORKDIR=/tmp/algostep-vms node --import tsx scripts/vm-smoke.ts
+          sudo env PATH="$PATH" BOUNDARY_ONLY="$BOUNDARY_ONLY" KERNEL_PATH="$PWD/apps/runner/images/vmlinux" ROOTFS_PATH="$PWD/apps/runner/images/rootfs.ext4" RUNNER_WORKDIR=/tmp/algostep-vms node --import tsx scripts/vm-smoke.ts

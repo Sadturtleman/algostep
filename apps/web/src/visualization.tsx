@@ -52,6 +52,10 @@ export function TraceViewer({
             {truncated && "· 수집 한도에 도달했어요"}
           </p>
           <Structure vars={vars} topic={topic} />
+          <p className="caption">
+            시각화는 같은 입력으로 별도 실행한 추적이에요. 난수·현재 시각에
+            의존하는 코드는 채점 실행과 흐름이 다를 수 있어요.
+          </p>
           <div className="playback">
             <button
               className="secondary"

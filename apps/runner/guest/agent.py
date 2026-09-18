@@ -54,9 +54,9 @@ def execute(job):
             if entry.is_dir() and not entry.is_symlink():shutil.rmtree(entry)
             else:entry.unlink()
         status,out,err,ms,peak=run(command,case['input'],limit['testMs']/1000,limit['outputBytes'],memory)
-        expected=case['expected'];verdict=status if status!='OK' else 'COMPLETED' if expected is None else 'AC' if out==expected else 'WA'
+        expected=case['expected'];verdict=status if status!='OK' else 'COMPLETED' if expected is None else 'AC' if (WORK/'stdout').read_bytes()==expected.encode('utf-8') else 'WA'
         trace=[]
-        if status=='OK':
+        if status in ('OK','RE'):
             debug={'python':['python3.10','/trace.py'],'cpp':['gdb','-q','-batch','-x','/gdb_trace.py','./main'],'java':['java','-Xmx128m','-XX:+UseSerialGC','--add-modules','jdk.jdi','-cp','/opt/tracer','JdiTrace']}[lang]
             # Separate tracing run; never use debugger timing or output for judging.
             run(debug,case['input'],limit['testMs']/1000,limit['outputBytes'],memory)

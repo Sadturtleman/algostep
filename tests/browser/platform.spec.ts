@@ -119,4 +119,108 @@ test("network outage uses full-screen recovery CTA", async ({ page }) => {
     path: "test-results/network-error.png",
     fullPage: true,
   });
+  await page.unroute("**/api/records");
+  await page.getByRole("button", { name: "작성 화면으로 돌아가기" }).click();
+  await expect(
+    page.getByRole("heading", { name: "내 기록", exact: true }),
+  ).toBeVisible();
+});
+
+test("worker result contract renders actual supplied trace and strict outputs", async ({
+  page,
+}) => {
+  await authenticate(page);
+  const me = await (await page.request.get("/api/me")).json();
+  const headers = { origin: "http://127.0.0.1:5173", "x-csrf-token": me.csrf };
+  const record = await (
+    await page.request.post("/api/records", {
+      headers,
+      data: { problemId: "bfs-v1", language: "java" },
+    })
+  ).json();
+  const execution = await (
+    await page.request.post(`/api/records/${record.id}/executions`, {
+      headers,
+      data: {
+        requestKey: "browser-worker-contract",
+        revision: 0,
+        mode: "judge",
+      },
+    })
+  ).json();
+  const internal = { authorization: "Bearer e2e-runner-secret" };
+  let job: any;
+  for (let i = 0; i < 10; i++) {
+    job = (
+      await (
+        await page.request.post("/api/internal/claim", {
+          headers: internal,
+          data: {},
+        })
+      ).json()
+    ).job;
+    if (job?.id === execution.id) break;
+    if (job)
+      await page.request.post(`/api/internal/executions/${job.id}/result`, {
+        headers: internal,
+        data: { token: job.token, systemError: "TEST_CLEANUP" },
+      });
+  }
+  expect(job.id).toBe(execution.id);
+  const trace = [
+    {
+      line: 8,
+      event: "line",
+      locals: { g: [[1], [0]], v: 0, q: [1], seen: [true, true] },
+      stack: ["main"],
+    },
+    {
+      line: 9,
+      event: "line",
+      locals: { g: [[1], [0]], v: 1, q: [], seen: [true, true] },
+      stack: ["main"],
+    },
+  ];
+  const result = await page.request.post(
+    `/api/internal/executions/${job.id}/result`,
+    {
+      headers: internal,
+      data: {
+        token: job.token,
+        result: {
+          verdict: "WA",
+          runnerImage: "explicit-browser-test-fixture",
+          traceSupport: "JDI",
+          tests: [
+            {
+              input: "2 1\n0 1\n0\n",
+              expected: "0 1\n",
+              actual: "0 1",
+              stderr: "",
+              verdict: "WA",
+              elapsedMs: 13,
+              peakMemoryBytes: 1048576,
+              trace,
+            },
+          ],
+        },
+      },
+    },
+  );
+  expect(result.ok()).toBe(true);
+  await page.goto("/");
+  await page.getByRole("button", { name: "내 기록", exact: true }).click();
+  await page
+    .getByRole("article")
+    .filter({ hasText: "그래프를 가까운 순서로 탐색하기" })
+    .getByRole("button", { name: "이어서 보기" })
+    .click();
+  await expect(
+    page.getByRole("img", { name: "그래프의 현재 방문 상태" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "다음 단계", exact: true }).click();
+  await expect(page.getByText("2 / 2 단계")).toBeVisible();
+  await page.getByRole("button", { name: "테스트 결과", exact: true }).click();
+  await expect(page.getByText("13 ms", { exact: true })).toBeVisible();
+  await expect(page.getByText('"0 1\\n"', { exact: true })).toBeVisible();
 });

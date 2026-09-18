@@ -65,6 +65,7 @@ function App() {
     lastSaved = useRef({ source: "", language: "python" }),
     runKey = useRef<string | null>(null),
     reviewKey = useRef<string | null>(null);
+  const shownExecutionErrors = useRef(new Set<string>());
   const fail = (e: any) =>
     setError(
       e instanceof ApiError
@@ -232,6 +233,19 @@ function App() {
     const timer = setInterval(async () => {
       try {
         const fresh = await api(`/records/${record.id}`);
+        if (
+          fresh.execution?.status === "FAILED" &&
+          !shownExecutionErrors.current.has(fresh.execution.id)
+        ) {
+          shownExecutionErrors.current.add(fresh.execution.id);
+          fail(
+            new ApiError(
+              "RUNNER_INTERRUPTED",
+              "실행 환경 연결이 끊겼어요. 코드 오답으로 처리하지 않았습니다. 현재 코드를 유지한 채 다시 실행할 수 있어요.",
+              503,
+            ),
+          );
+        }
         setRecord((old: any) =>
           old?.id === fresh.id
             ? {
@@ -481,11 +495,22 @@ function App() {
           )}
           <div className="actions">
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (error.status === 401) {
                   setUser(null);
+                  setError(null);
+                  return;
                 }
-                setError(null);
+                try {
+                  if (!config) setConfig(await api("/config"));
+                  if (error.code === "NETWORK_ERROR" && user) {
+                    await loadData();
+                    if (saveStatus === "저장 실패") await save();
+                  }
+                  setError(null);
+                } catch (e) {
+                  fail(e);
+                }
               }}
             >
               {error.status === 401

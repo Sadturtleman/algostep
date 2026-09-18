@@ -181,7 +181,14 @@ function exchange(path: string, job: Job, signal?: AbortSignal): Promise<any> {
           return finish(new Error("VSOCK_NOT_READY"));
         buffer = buffer.slice(nl + 1);
         handshake = true;
-        socket.write(JSON.stringify(job) + "\n");
+        socket.write(
+          JSON.stringify({
+            language: job.language,
+            source: job.source,
+            tests: job.tests,
+            limits: job.limits,
+          }) + "\n",
+        );
       }
       const nl = buffer.indexOf("\n");
       if (nl >= 0) {

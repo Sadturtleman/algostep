@@ -49,6 +49,7 @@ GitHub Actions는 별도 PostgreSQL 17에서도 검사하고 브라우저 스크
 
 - [ERD 초안](docs/erd-v1.md)
 - [현재 물리 모델과 ERD 차이](docs/physical-model.md)
+- [API 계약](docs/api.md)
 - [배포 및 VM 설정](docs/deployment.md)
 - [구현 범위와 남은 작업](docs/implementation-status.md)
 
