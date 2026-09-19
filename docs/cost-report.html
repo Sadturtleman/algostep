@@ -9,7 +9,7 @@
 <div class="scroll"><table><thead><tr><th>월 실행 수</th><th>합산 시간</th><th>리뷰 수</th><th>서버 (USD)</th><th>Gemini (USD)</th><th>합계 (USD)</th><th>원화 환산</th></tr></thead><tbody id="rows"></tbody></table></div><p><small>가로축: 월 코드 실행 수(회). 세로축: 월 비용(USD). 표와 그래프는 같은 계산식을 사용한다. 현재 입력과 비교 시나리오가 함께 표시된다.</small></p><button id="csv">현재 표 CSV 다운로드</button>
 <h2>비용 계산 가정</h2><div class="scroll"><table><thead><tr><th>항목</th><th>단가·산정 기준</th><th>성격</th></tr></thead><tbody>
 <tr><td>N2-standard-2 호스트</td><td>$0.097118 × 두 워커 합산 가동 시간</td><td>공식 Iowa 기준 단가</td></tr>
-<tr><td>디스크·IPv4</td><td>30GiB × 2대 × $0.10 + 합산 가동 시간 × $0.005</td><td>디스크는 계획 단가, IPv4 공식 단가</td></tr>
+<tr><td>디스크·IPv4</td><td>40GiB × 2대 × $0.10 + 합산 가동 시간 × $0.005</td><td>디스크는 계획 단가, IPv4 공식 단가</td></tr>
 <tr><td>DB / 기타 운영비</td><td>$0 / $3 매월</td><td>Supabase Free / 기타 운영비 가정</td></tr>
 <tr><td>Cloud Run</td><td>1 vCPU $0.000024/초 + 2GiB $0.0000025/GiB초 + $0.40/백만 요청</td><td>Iowa 요청 기반 단가; 무료 한도 미차감</td></tr>
 <tr><td>Gemini 3.8 Flash</td><td>입력 $0.75, 출력·추론 $3.75 / 백만 토큰</td><td>Vertex 글로벌 표준 요금; 2026년 말까지, 2027년 두 배</td></tr>
@@ -19,7 +19,7 @@
 <p id="capacity"></p><p>학생의 월 무료 리뷰 3회도 운영자는 Gemini 사용료를 낸다. 할인, 무료 한도, 환율은 계정과 시점에 따라 달라진다. 기본 1,400원은 비교용 가정이며 현재 시장 환율이 아니다. 사용량이 같아도 입력 길이·추론 토큰·재시도·실패 응답에 따라 실제 비용은 달라진다. API 사용량 집계는 청구서와 대조해야 한다.</p>
 <h2>확인 출처</h2><p><a href="https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing">Gemini 공식 요금</a> · <a href="https://cloud.google.com/run/pricing">Cloud Run</a> · <a href="https://cloud.google.com/products/compute/pricing/general-purpose">Compute Engine</a> · <a href="https://cloud.google.com/vpc/pricing">IPv4·전송</a> · <a href="https://cloud.google.com/storage/pricing">스토리지</a> · <a href="https://cloud.google.com/compute/disks-image-pricing">디스크</a></p>
 </main><script type="module">
-const assumptions={hours:60,calendarHours:720,vmHourly:0.097118,diskGiB:60,diskRate:0.10,ipv4Hourly:0.005,dbAllowance:0,otherAllowance:3,slots:2,pollSeconds:15,executionSeconds:30,requestsPerExecution:15,requestSeconds:0.1,maintenanceSeconds:2,reviewSeconds:20,reviewRatio:0.1,inputTokens:4000,outputTokens:1500,thinkingTokens:500,inputRate:0.75,outputRate:3.75,traceMiB:0.2,egressMiB:2,storageRate:0.02,egressRate:0.12,usdKrw:1400};
+const assumptions={hours:60,calendarHours:720,vmHourly:0.097118,diskGiB:80,diskRate:0.10,ipv4Hourly:0.005,dbAllowance:0,otherAllowance:3,slots:2,pollSeconds:15,executionSeconds:30,requestsPerExecution:15,requestSeconds:0.1,maintenanceSeconds:2,reviewSeconds:20,reviewRatio:0.1,inputTokens:4000,outputTokens:1500,thinkingTokens:500,inputRate:0.75,outputRate:3.75,traceMiB:0.2,egressMiB:2,storageRate:0.02,egressRate:0.12,usdKrw:1400};
 function estimate(executions, a = assumptions) {
   const reviews = Math.round(executions * a.reviewRatio);
   // Keep larger scenarios physically possible; leave 30% for boot/idle/bursts.

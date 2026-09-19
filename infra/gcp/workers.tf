@@ -88,7 +88,7 @@ resource "google_compute_instance" "worker" {
   boot_disk {
     initialize_params {
       image = var.worker_image
-      size  = 30
+      size  = 40
       type  = "pd-balanced"
     }
 
@@ -171,4 +171,3 @@ resource "google_compute_instance_iam_member" "controller" {
 output "worker_names" {
   value = google_compute_instance.worker[*].name
 }
-

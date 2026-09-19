@@ -28,7 +28,7 @@ Agent Platform API 키는 `GEMINI_BACKEND=vertex-express`로 연결한다. Gemin
 
 ## 비용과 운영 경계
 
-무료 VM 2대 구성은 아니다. Supabase Free와 Cloud Run 무료 한도를 활용하되 N2는 가동 시간에 따라 유료다. 디스크 30GiB 두 개는 VM이 꺼져도 과금된다. 동적 외부 IP는 중지하면 해제되며 예약 IP·로드밸런서·Cloud NAT는 만들지 않는다.
+무료 VM 2대 구성은 아니다. Supabase Free와 Cloud Run 무료 한도를 활용하되 N2는 가동 시간에 따라 유료다. 디스크 40GiB 두 개는 VM이 꺼져도 과금된다. 동적 외부 IP는 중지하면 해제되며 예약 IP·로드밸런서·Cloud NAT는 만들지 않는다.
 
 비용표는 `cost-report.html`에서 합산 가동 시간과 실행 횟수를 독립적으로 조절한다. 부팅·15분 유휴 대기도 가동 시간에 포함한다. 월 예측은 청구 실적이 아니다. 이미지 보관·빌드·로그 비용과 Supabase 무료 용량 초과 여부를 별도 확인한다.
 

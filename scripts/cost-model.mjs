@@ -2,7 +2,7 @@ export const assumptions = {
   hours: 60, // Aggregate worker-hours/month, including cold start and idle grace.
   calendarHours: 720,
   vmHourly: 0.097118,
-  diskGiB: 60,
+  diskGiB: 80,
   diskRate: 0.1,
   ipv4Hourly: 0.005,
   dbAllowance: 0, // Supabase Free within its quota.

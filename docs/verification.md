@@ -49,3 +49,10 @@ GitHub 업로드와 CI 통과를 운영 출시로 간주하지 않는다. 최신
 ## Gemini 전환 후 추가 검증
 
 2026-09-19: 단위/API 검사 25개, 타입 검사와 전체 빌드 통과. Gemini 헤더 인증, 세 입력만 전달, 구조화 출력, 추론 토큰 분리, 잘린 응답 거부, 성공 소비와 삭제 후 공급자 토큰 원장 보존을 모의 응답으로 확인했다. 실제 Gemini 키 호출과 GCP 배포는 프로젝트/계정 설정 대기다. 비용 계산기의 사용량 변경 및 표/그래프 갱신을 브라우저에서 확인했다. Terraform validate도 통과했다.
+# 2026-09-19 온디맨드 인프라 검증
+
+- 커밋 `11c6ac2`: [PostgreSQL·브라우저 CI](https://github.com/Sadturtleman/algostep/actions/runs/35424117201)와 [Terraform·컨테이너 CI](https://github.com/Sadturtleman/algostep/actions/runs/35424117237) 통과.
+- 워커 자동 기동/확장/종료 배정 차단/불확실한 종료 재시도, 호스트별 2슬롯, PostgreSQL 전용 스키마를 검증했다.
+- GCP Cloud Build `033ec262-dbaf-4d8a-a5ab-6f9184686b50` 성공. Supabase 세션 초기화 개선을 포함한 후속 이미지 빌드는 별도 진행.
+- Gemini Vertex Express `gemini-3.8-flash` 실제 최소 호출 HTTP 200, STOP. 키 값은 출력하거나 파일에 기록하지 않았다.
+- 실제 워커 이미지는 일회성 N2에서 커널 빌드와 VM 검증 진행 중. Cloud Run 로그인·Supabase 실제 연결·온디맨드 클라우드 사이클은 아직 검증 완료가 아니다.
