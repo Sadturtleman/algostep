@@ -71,7 +71,7 @@ export async function registerAdmin(app: FastifyInstance, db: DB) {
         (SELECT count(DISTINCT user_id)::int FROM visitor_days,clock WHERE day>=date_trunc('week',today)::date AND day<=today) AS weekly,
         (SELECT count(DISTINCT user_id)::int FROM visitor_days,clock WHERE day>=date_trunc('month',today)::date AND day<=today) AS monthly,
         (SELECT count(*)::int FROM users) AS users,
-        (SELECT count(*)::int FROM users WHERE created_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul') AS new_users,
+        (SELECT count(*)::int FROM users WHERE created_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul') AS new_users,
         (SELECT count(DISTINCT user_id)::int FROM visitor_days WHERE day BETWEEN $1::date AND $2::date) AS period_visitors,
         (SELECT count(*)::int FROM support_tickets WHERE status!='RESOLVED') AS open_inquiries,
         (SELECT min(first_seen) FROM visitor_days) AS tracking_since`,
@@ -86,7 +86,7 @@ export async function registerAdmin(app: FastifyInstance, db: DB) {
         SELECT date_trunc($3,day)::date AS bucket,count(DISTINCT user_id)::int AS visitors FROM visitor_days WHERE day BETWEEN $1::date AND $2::date GROUP BY 1
       ), joined AS (
         SELECT date_trunc($3,created_at AT TIME ZONE 'Asia/Seoul')::date AS bucket,count(*)::int AS new_users FROM users
-        WHERE created_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul' GROUP BY 1
+        WHERE created_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul' GROUP BY 1
       ) SELECT to_char(b.bucket,'YYYY-MM-DD') AS period,CASE WHEN (SELECT min(day) FROM visitor_days) IS NULL OR (b.bucket+('1 ' || $3)::interval)::date <= (SELECT min(day) FROM visitor_days) THEN NULL ELSE coalesce(v.visitors,0)::int END AS visitors,coalesce(j.new_users,0)::int AS new_users
       FROM buckets b LEFT JOIN visitors v USING(bucket) LEFT JOIN joined j USING(bucket) ORDER BY b.bucket`,
           [...args, range.grain],
@@ -100,7 +100,7 @@ export async function registerAdmin(app: FastifyInstance, db: DB) {
       ).rows;
       const revenue = (
         await tx.query(
-          `SELECT currency,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE 0 END)::text AS gross,sum(CASE WHEN kind='REFUND' THEN amount ELSE 0 END)::text AS refunds,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE -amount END)::text AS net FROM revenue_entries WHERE occurred_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND occurred_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul' GROUP BY currency`,
+          `SELECT currency,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE 0 END)::text AS gross,sum(CASE WHEN kind='REFUND' THEN amount ELSE 0 END)::text AS refunds,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE -amount END)::text AS net FROM revenue_entries WHERE occurred_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND occurred_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul' GROUP BY currency`,
           args,
         )
       ).rows;
@@ -112,19 +112,19 @@ export async function registerAdmin(app: FastifyInstance, db: DB) {
       ).rows;
       const revenueSeries = (
         await tx.query(
-          `SELECT to_char(date_trunc($3,occurred_at AT TIME ZONE 'Asia/Seoul'),'YYYY-MM-DD') AS period,currency,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE -amount END)::text AS amount FROM revenue_entries WHERE occurred_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND occurred_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul' GROUP BY 1,2 ORDER BY 1,2`,
+          `SELECT to_char(date_trunc($3,occurred_at AT TIME ZONE 'Asia/Seoul'),'YYYY-MM-DD') AS period,currency,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE -amount END)::text AS amount FROM revenue_entries WHERE occurred_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND occurred_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul' GROUP BY 1,2 ORDER BY 1,2`,
           [...args, range.grain],
         )
       ).rows;
       const usage = (
         await tx.query(
-          `SELECT provider,model,count(*)::int AS calls,count(input_tokens)::int AS measured_calls,sum(input_tokens)::text AS input_tokens,sum(output_tokens)::text AS output_tokens,sum(thinking_tokens)::text AS thinking_tokens FROM review_api_usage WHERE created_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul' GROUP BY provider,model`,
+          `SELECT provider,model,count(*)::int AS calls,count(input_tokens)::int AS measured_calls,sum(input_tokens)::text AS input_tokens,sum(output_tokens)::text AS output_tokens,sum(thinking_tokens)::text AS thinking_tokens FROM review_api_usage WHERE created_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul' GROUP BY provider,model`,
           args,
         )
       ).rows;
       const events = (
         await tx.query(
-          `SELECT type,count(*)::int AS count FROM business_events WHERE created_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul' GROUP BY type ORDER BY count DESC`,
+          `SELECT type,count(*)::int AS count FROM business_events WHERE created_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul' GROUP BY type ORDER BY count DESC`,
           args,
         )
       ).rows;
@@ -168,7 +168,7 @@ export async function registerAdmin(app: FastifyInstance, db: DB) {
       .parse(req.query);
     const rows = (
       await db.query(
-        `SELECT id,type,actor_id,entity_id,metadata,created_at FROM business_events WHERE created_at >= $1::date AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1) AT TIME ZONE 'Asia/Seoul' AND ($3::text IS NULL OR type=$3) ORDER BY created_at DESC,id LIMIT 51 OFFSET $4`,
+        `SELECT id,type,actor_id,entity_id,metadata,created_at FROM business_events WHERE created_at >= $1::date::timestamp AT TIME ZONE 'Asia/Seoul' AND created_at < ($2::date+1)::timestamp AT TIME ZONE 'Asia/Seoul' AND ($3::text IS NULL OR type=$3) ORDER BY created_at DESC,id LIMIT 51 OFFSET $4`,
         [range.from, range.to, type ?? null, (page - 1) * 50],
       )
     ).rows;

@@ -55,3 +55,7 @@
 - 도메인·TLS·클라우드 계정. 이 저장소 생성으로 서비스가 인터넷에 배포되는 것은 아니다.
 
 검증 증거와 최신 통과 여부는 GitHub Actions 및 `docs/verification.md`를 확인한다. 로컬 통합 테스트가 외부 인증·PG·프로덕션 VM 보안 검증을 대신하지 않는다.
+
+## 비즈니스 분석 확장 (2026-09-20)
+
+36종 이벤트 원장과 GA4 Measurement Protocol 전송 outbox, Redash 조회 전용 뷰 7개/쿼리 13개/연결 스크립트를 구현했다. 관리자 화면에서 설정 및 전송 상태를 확인한다. GA4 측정 ID·API Secret 및 Redash 주소·권한은 확인 대기이며 외부 연결 완료 상태가 아니다. [연결 절차 및 한계](analytics-integrations.md)를 참고한다.

@@ -20,6 +20,13 @@ export async function processReview(db: DB, options: LlmOptions) {
       "UPDATE reviews SET status='RUNNING',started_at=now() WHERE id=$1",
       [r.id],
     );
+    await businessEvent(
+      tx,
+      "REVIEW_STARTED",
+      r.user_id,
+      r.id,
+      "review-start:" + r.id,
+    );
     return r;
   });
   if (!task) return false;

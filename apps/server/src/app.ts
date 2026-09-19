@@ -25,6 +25,9 @@ import { externalize, hydrate, type ObjectStorage } from "./object-storage.js";
 import { maintenance } from "./maintenance.js";
 import { registerAdmin } from "./admin.js";
 import { businessEvent, visit } from "./business.js";
+import { analyticsContext, readAnalyticsContext } from "./analytics-context.js";
+import { registerClientEvents } from "./client-events.js";
+import { ga4Config } from "./ga4.js";
 
 type Config = {
   db: DB;
@@ -93,6 +96,9 @@ export async function createApp(c: Config) {
     logger: process.env.NODE_ENV !== "test",
     bodyLimit: 2 * 1024 * 1024,
   });
+  app.addHook("onRequest", (req, _reply, done) =>
+    analyticsContext.run(readAnalyticsContext(req.headers), done),
+  );
   await app.register(cookie);
   await app.register(cors, { origin: c.origin, credentials: true });
   await app.register(rateLimit, {
@@ -229,7 +235,7 @@ export async function createApp(c: Config) {
       );
     if (
       rows[0].client === "android" &&
-      !/^\/api\/(me|topics|quiz\/[^/?]+|auth\/logout|analytics\/visit|support)(\?|$)/.test(
+      !/^\/api\/(me|topics|quiz\/[^/?]+|auth\/logout|analytics\/(visit|events)|support)(\?|$)/.test(
         req.url,
       )
     )
@@ -249,6 +255,7 @@ export async function createApp(c: Config) {
       );
   });
   await registerAdmin(app, c.db);
+  await registerClientEvents(app, c.db);
   const user = (req: any) => req.user.id as string;
   app.get("/api/operations/metrics", async () => ({
     reviewApiUsage30Days: (
@@ -305,6 +312,7 @@ export async function createApp(c: Config) {
   );
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/config", async () => ({
+    ga4MeasurementId: ga4Config()?.measurementId ?? null,
     googleClientId: c.googleClientId,
     reviewEnabled: c.llmEnabled,
     paymentEnabled: false,
@@ -389,7 +397,14 @@ export async function createApp(c: Config) {
         path: "/",
         maxAge: 7 * 86400,
       });
-      return { user: { ...account, isAdmin: isAdmin(account) }, csrf };
+      return {
+        user: {
+          ...account,
+          isAdmin: isAdmin(account),
+          analyticsId: account.analytics_id,
+        },
+        csrf,
+      };
     },
   );
   app.get("/api/me", async (req: any) => {
@@ -400,14 +415,18 @@ export async function createApp(c: Config) {
         name: req.user.display_name,
         email: req.user.email,
         isAdmin: isAdmin(req.user),
+        analyticsId: req.user.analytics_id,
       },
       csrf: req.user.csrf,
     };
   });
   app.post("/api/auth/logout", async (req: any, reply) => {
-    await c.db.query("DELETE FROM sessions WHERE id=$1", [
-      sessionDigest(req.cookies.session),
-    ]);
+    await c.db.tx(async (db) => {
+      await db.query("DELETE FROM sessions WHERE id=$1", [
+        sessionDigest(req.cookies.session),
+      ]);
+      await businessEvent(db, "LOGOUT", user(req), null, "logout:" + id());
+    });
     reply.clearCookie("session", { path: "/" });
     return { ok: true };
   });
@@ -557,17 +576,27 @@ export async function createApp(c: Config) {
       .extend({ revision: z.number().int().nonnegative() })
       .parse(req.body);
     await ownRecord(c.db, user(req), uuid.parse(req.params.id));
-    const { rows } = await c.db.query(
-      "UPDATE records SET source=$1,language=$2,revision=revision+1,updated_at=now() WHERE id=$3 AND user_id=$4 AND revision=$5 AND expires_at>now() RETURNING *",
-      [v.source, v.language, req.params.id, user(req), v.revision],
-    );
-    if (!rows[0])
-      throw new DomainError(
-        409,
-        "SAVE_CONFLICT",
-        "다른 화면에서 코드가 변경됐어요. 현재 코드를 복사한 뒤 최신 기록을 다시 열어 주세요.",
+    return c.db.tx(async (db) => {
+      const { rows } = await db.query(
+        "UPDATE records SET source=$1,language=$2,revision=revision+1,updated_at=now() WHERE id=$3 AND user_id=$4 AND revision=$5 AND expires_at>now() RETURNING *",
+        [v.source, v.language, req.params.id, user(req), v.revision],
       );
-    return rows[0];
+      if (!rows[0])
+        throw new DomainError(
+          409,
+          "SAVE_CONFLICT",
+          "다른 화면에서 코드가 변경됐어요. 현재 코드를 복사한 뒤 최신 기록을 다시 열어 주세요.",
+        );
+      await businessEvent(
+        db,
+        "CODE_SAVED",
+        user(req),
+        rows[0].id,
+        "save:" + rows[0].id + ":" + rows[0].revision,
+        { language: rows[0].language, revision: rows[0].revision },
+      );
+      return rows[0];
+    });
   });
   app.delete("/api/records/:id", async (req: any) => {
     await c.db.tx(async (db) => {
@@ -745,6 +774,13 @@ export async function createApp(c: Config) {
       execution: await hydrate(c.storage, execution),
       reviews,
     });
+    await businessEvent(
+      c.db,
+      "PDF_GENERATED",
+      user(req),
+      record.id,
+      "pdf:" + id(),
+    );
     return reply
       .type("application/pdf")
       .header(
@@ -779,8 +815,8 @@ export async function createApp(c: Config) {
         if (busy >= fleet.slots) return { job: null };
       }
 
-      await db.query(
-        "UPDATE executions SET status='FAILED',result=$1,finished_at=now(),lease_token=NULL WHERE status='RUNNING' AND lease_expires_at<now()",
+      const interrupted = await db.query(
+        "UPDATE executions SET status='FAILED',result=$1,finished_at=now(),lease_token=NULL WHERE status='RUNNING' AND lease_expires_at<now() RETURNING id,record_id",
         [
           JSON.stringify({
             systemError: "RUNNER_INTERRUPTED",
@@ -788,6 +824,22 @@ export async function createApp(c: Config) {
           }),
         ],
       );
+      for (const failed of interrupted.rows) {
+        const owner = (
+          await db.query("SELECT user_id FROM records WHERE id=$1", [
+            failed.record_id,
+          ])
+        ).rows[0];
+        if (owner)
+          await businessEvent(
+            db,
+            "EXECUTION_FINISHED",
+            owner.user_id,
+            failed.id,
+            "execution-finish:" + failed.id,
+            { status: "FAILED", verdict: "RUNNER_INTERRUPTED" },
+          );
+      }
       const n = (
         await db.query(
           "SELECT count(*) AS n FROM executions WHERE status='RUNNING'",
@@ -796,7 +848,7 @@ export async function createApp(c: Config) {
       if (Number(n.n) >= 10) return { job: null };
       const e = (
         await db.query(
-          "SELECT e.* FROM executions e JOIN records r ON r.id=e.record_id WHERE e.status='QUEUED' AND r.expires_at>now() ORDER BY e.created_at LIMIT 1 FOR UPDATE OF e SKIP LOCKED",
+          "SELECT e.*,r.user_id FROM executions e JOIN records r ON r.id=e.record_id WHERE e.status='QUEUED' AND r.expires_at>now() ORDER BY e.created_at LIMIT 1 FOR UPDATE OF e SKIP LOCKED",
         )
       ).rows[0];
       if (!e) return { job: null };
@@ -809,6 +861,14 @@ export async function createApp(c: Config) {
       await db.query(
         "UPDATE executions SET status='RUNNING',attempt=attempt+1,lease_token=$2,lease_expires_at=now()+interval '90 seconds',worker_name=$3 WHERE id=$1",
         [e.id, token, fleet ? worker : null],
+      );
+      await businessEvent(
+        db,
+        "EXECUTION_STARTED",
+        e.user_id,
+        e.id,
+        "execution-start:" + e.id,
+        { attempt: e.attempt + 1 },
       );
       const info = (
         await db.query(

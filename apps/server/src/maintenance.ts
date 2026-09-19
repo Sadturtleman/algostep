@@ -4,6 +4,7 @@ import type { DB } from "./db.js";
 import { cleanExpired } from "./domain.js";
 import { processReview, recoverReviews } from "./review-worker.js";
 import { deleteObjects, type ObjectStorage } from "./object-storage.js";
+import { deliverGa4 } from "./ga4.js";
 export async function maintenance(db: DB, storage?: ObjectStorage) {
   await cleanExpired(db);
   await recoverReviews(db);
@@ -22,5 +23,6 @@ export async function maintenance(db: DB, storage?: ObjectStorage) {
     }
   const llm = llmOptions();
   if (llm) await processReview(db, llm);
+  await deliverGa4(db);
   if (fleetError) throw fleetError;
 }

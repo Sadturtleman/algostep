@@ -1,3 +1,4 @@
+import { track } from "./analytics.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 export type DiagramNode = {
   id: string;
@@ -135,6 +136,7 @@ export function DiagramCanvas({
           aria-label={`${label} 배치`}
           value={layout}
           onChange={(e) => {
+            track("VISUALIZATION_CONTROL", { action: "layout" });
             setLayout(e.target.value);
             setMoved({});
           }}
@@ -147,6 +149,7 @@ export function DiagramCanvas({
           className="secondary"
           onClick={() => {
             setMoved({});
+            track("VISUALIZATION_CONTROL", { action: "reset" });
             setZoom(1);
             setLayout("auto");
           }}
@@ -155,7 +158,8 @@ export function DiagramCanvas({
         </button>
         <button
           className="secondary"
-          onClick={() =>
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "fit" });
             setZoom(
               Math.max(
                 0.3,
@@ -165,8 +169,8 @@ export function DiagramCanvas({
                   500 / height,
                 ),
               ),
-            )
-          }
+            );
+          }}
         >
           화면에 맞춤
         </button>
@@ -174,6 +178,10 @@ export function DiagramCanvas({
           확대{" "}
           <input
             aria-label={`${label} 확대`}
+            onPointerUp={() =>
+              track("VISUALIZATION_CONTROL", { action: "seek" })
+            }
+            onKeyUp={() => track("VISUALIZATION_CONTROL", { action: "seek" })}
             type="range"
             min="0.3"
             max="1.8"
@@ -307,6 +315,8 @@ export function DiagramCanvas({
                   }));
               }}
               onPointerUp={() => {
+                if (drag.current)
+                  track("VISUALIZATION_CONTROL", { action: "move_node" });
                 drag.current = null;
               }}
               onPointerCancel={() => {
@@ -320,6 +330,7 @@ export function DiagramCanvas({
                   ArrowDown: [0, 12],
                 };
                 if (!delta[e.key]) return;
+                track("VISUALIZATION_CONTROL", { action: "move_node" });
                 e.preventDefault();
                 setMoved((prev) => ({
                   ...prev,
