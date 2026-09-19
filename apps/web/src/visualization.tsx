@@ -1,3 +1,4 @@
+import { track } from "./analytics.js";
 import { DiagramCanvas, graphPositions } from "./DiagramCanvas.js";
 import { lessonExamples } from "./lesson-examples.js";
 import React, { useEffect, useState } from "react";
@@ -69,12 +70,21 @@ export function TraceViewer({
               aria-label="이전 단계"
               onClick={() => {
                 setPlaying(false);
+                track("VISUALIZATION_CONTROL", { action: "previous", step });
                 setStep(Math.max(0, step - 1));
               }}
             >
               이전
             </button>
-            <button onClick={() => setPlaying(!playing)}>
+            <button
+              onClick={() => {
+                track("VISUALIZATION_CONTROL", {
+                  action: playing ? "pause" : "play",
+                  step,
+                });
+                setPlaying(!playing);
+              }}
+            >
               {playing ? "일시 정지" : "재생"}
             </button>
             <button
@@ -82,6 +92,7 @@ export function TraceViewer({
               aria-label="다음 단계"
               onClick={() => {
                 setPlaying(false);
+                track("VISUALIZATION_CONTROL", { action: "next", step });
                 setStep(Math.min(trace.length - 1, step + 1));
               }}
             >
@@ -89,6 +100,12 @@ export function TraceViewer({
             </button>
             <input
               aria-label="실행 단계"
+              onPointerUp={() =>
+                track("VISUALIZATION_CONTROL", { action: "seek", step })
+              }
+              onKeyUp={() =>
+                track("VISUALIZATION_CONTROL", { action: "seek", step })
+              }
               type="range"
               min="0"
               max={Math.max(0, trace.length - 1)}
@@ -348,6 +365,7 @@ function CoreLessonDiagram({ topic }: { topic: string }) {
             onChange={(e) => {
               const i = Number(e.target.value),
                 example = examples[i];
+              track("EXAMPLE_SELECTED", { topic, index: i });
               setExampleIndex(i);
               setCustom(false);
               setText(example.values.join(", "));
@@ -379,9 +397,19 @@ function CoreLessonDiagram({ topic }: { topic: string }) {
             nums.length > 8 ||
             nums.some((n) => !Number.isInteger(n) || Math.abs(n) > 1000)
           ) {
+            track("EXAMPLE_APPLIED", {
+              topic,
+              count: Math.min(nums.length, 1000000),
+              success: false,
+            });
             setInvalid("정수 1~8개를 입력하세요. 각 값은 -1000~1000이에요.");
             return;
           }
+          track("EXAMPLE_APPLIED", {
+            topic,
+            count: nums.length,
+            success: true,
+          });
           setValues(nums);
           setCustom(true);
           setStep(0);
@@ -460,7 +488,10 @@ function CoreLessonDiagram({ topic }: { topic: string }) {
         <button
           className="secondary"
           disabled={step === 0}
-          onClick={() => setStep(step - 1)}
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "previous", step });
+            setStep(step - 1);
+          }}
         >
           이전
         </button>
@@ -469,7 +500,10 @@ function CoreLessonDiagram({ topic }: { topic: string }) {
         </span>
         <button
           disabled={step >= frames.length - 1}
-          onClick={() => setStep(step + 1)}
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "next", step });
+            setStep(step + 1);
+          }}
         >
           다음 단계
         </button>

@@ -1,3 +1,4 @@
+import { track } from "./analytics.js";
 import React, { useMemo, useState } from "react";
 import { advancedLesson } from "./advanced-lessons.js";
 import { DiagramCanvas } from "./DiagramCanvas.js";
@@ -25,6 +26,10 @@ export function AdvancedLesson({ topic }: { topic: string }) {
             aria-label="예제 선택"
             value={variant}
             onChange={(e) => {
+              track("EXAMPLE_SELECTED", {
+                topic,
+                index: Number(e.target.value),
+              });
               setVariant(Number(e.target.value));
               setStep(0);
             }}
@@ -72,14 +77,20 @@ export function AdvancedLesson({ topic }: { topic: string }) {
         <button
           className="secondary"
           disabled={step === 0}
-          onClick={() => setStep(0)}
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "first", step });
+            setStep(0);
+          }}
         >
           처음
         </button>
         <button
           className="secondary"
           disabled={step === 0}
-          onClick={() => setStep((s) => s - 1)}
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "previous", step });
+            setStep((s) => s - 1);
+          }}
         >
           이전
         </button>
@@ -88,14 +99,20 @@ export function AdvancedLesson({ topic }: { topic: string }) {
         </span>
         <button
           disabled={step === lesson.frames.length - 1}
-          onClick={() => setStep((s) => s + 1)}
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "next", step });
+            setStep((s) => s + 1);
+          }}
         >
           다음 단계
         </button>
         <button
           className="secondary"
           disabled={step === lesson.frames.length - 1}
-          onClick={() => setStep(lesson.frames.length - 1)}
+          onClick={() => {
+            track("VISUALIZATION_CONTROL", { action: "last", step });
+            setStep(lesson.frames.length - 1);
+          }}
         >
           마지막
         </button>

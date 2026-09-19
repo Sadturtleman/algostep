@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { track } from "./analytics.js";
+import React, { useState, useEffect } from "react";
 import { post } from "./api.js";
 export function QuizPanel({
   topic,
@@ -14,6 +15,9 @@ export function QuizPanel({
     [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Record<string, boolean>>({});
   const q = questions[index];
+  useEffect(() => {
+    track("QUIZ_VIEWED", { topic: topic.id, index });
+  }, [topic.id, index]);
   const move = (next: number) => {
     setIndex(next);
     setAnswer(null);
@@ -68,6 +72,7 @@ export function QuizPanel({
           <button
             className="secondary"
             onClick={() => {
+              track("QUIZ_RETRIED", { topic: topic.id });
               setFeedback(null);
               setAnswer(null);
             }}
