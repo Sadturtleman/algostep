@@ -14,6 +14,7 @@ COPY --from=build /app/apps/server/dist ./apps/server/dist
 COPY --from=build /app/apps/server/package.json ./apps/server/package.json
 COPY --from=build /app/apps/web/dist ./web
 COPY package.json ./package.json
+COPY infra/certs/supabase-ca.crt /app/certs/supabase-ca.crt
 RUN node node_modules/playwright/cli.js install --with-deps chromium && apt-get update && apt-get install -y --no-install-recommends fonts-noto-cjk && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production HOST=0.0.0.0 WEB_DIST=/app/web BACKGROUND_WORKER=false
 CMD ["node","apps/server/dist/index.js"]

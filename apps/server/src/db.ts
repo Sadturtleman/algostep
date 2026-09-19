@@ -1,5 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
+import { readFileSync } from "node:fs";
 import { migrate } from "./migrations.js";
 export interface DB {
   query(sql: string, args?: any[]): Promise<{ rows: Record<string, any>[] }>;
@@ -11,9 +12,22 @@ export async function database(url?: string, path?: string): Promise<DB> {
     const schema = process.env.DATABASE_SCHEMA;
     if (schema && !/^[a-z][a-z0-9_]{0,62}$/.test(schema))
       throw new Error("INVALID_DATABASE_SCHEMA");
+    const connection = new URL(url.trim());
+    const caPath = process.env.DATABASE_SSL_CA;
+    // pg's connection-string SSL fields override the explicit ssl object.
+    // With an explicit CA, always enforce certificate and hostname validation.
+    if (caPath)
+      for (const key of ["sslmode", "sslrootcert", "sslcert", "sslkey"])
+        connection.searchParams.delete(key);
     const pool = new pg.Pool({
-      connectionString: url.trim(),
+      connectionString: connection.toString(),
       max: 5,
+      connectionTimeoutMillis: 10000,
+      ...(caPath
+        ? {
+            ssl: { ca: readFileSync(caPath, "utf8"), rejectUnauthorized: true },
+          }
+        : {}),
     });
     const initialized = new WeakSet<pg.PoolClient>();
     const connect = async () => {
