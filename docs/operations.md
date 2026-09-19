@@ -18,6 +18,8 @@
 
 `OPERATIONS_TOKEN`은 `RUNNER_TOKEN`과 다른 32바이트 이상 비밀값이다. 운영 경로는 Bearer 토큰을 요구하며 사용자·러너 토큰으로 접근할 수 없다.
 
+maintenance에 한해 Google OIDC도 허용한다. `SCHEDULER_AUDIENCE`와 `SCHEDULER_EMAIL`을 설정하고 서명·audience·검증된 이메일의 정확한 일치를 확인한다. Terraform은 전용 스케줄러 계정으로 이 경로를 호출하며 ready/metrics 권한은 부여하지 않는다.
+
 - GET `/api/operations/ready`: DB 연결 확인
 - GET `/api/operations/metrics`: 실행/리뷰 상태별 수, 가장 오래된 생성 시각, 삭제 대기 객체 수, 스키마 버전
 - POST `/api/operations/maintenance`: 만료 데이터/세션/nonce 정리, 중단 리뷰 회수, 객체 삭제 재시도, 리뷰 1건 처리. 응답 제한 시간 180초 권장.

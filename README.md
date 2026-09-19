@@ -53,6 +53,7 @@ GitHub Actions는 별도 PostgreSQL 17에서도 검사하고 브라우저 스크
 - [API 계약](docs/api.md)
 - [배포 및 VM 설정](docs/deployment.md)
 - [구현 범위와 남은 작업](docs/implementation-status.md)
+- [실제 검사 결과 및 CI 증거](docs/verification.md)
 - [Android 빌드와 OAuth](docs/android.md)
 - [저비용 GCP 구성 검토](docs/gcp-cost-plan.md)
 - [마이그레이션·백업·콘텐츠 관리·관측](docs/operations.md)
