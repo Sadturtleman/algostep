@@ -473,6 +473,31 @@ footer small {
   margin-top: 24px;
   align-items: start;
 }
+.lesson-next-screen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.lesson-next-screen p {
+  color: var(--muted);
+  margin: 0;
+}
+.concept-uses {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 8px;
+}
+.concept-uses h3 {
+  font-size: 17px;
+  margin-top: 20px;
+}
 .practice-next p {
   line-height: 1.8;
   color: var(--muted);

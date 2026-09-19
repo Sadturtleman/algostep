@@ -80,12 +80,19 @@ test("expanded quizzes and movable diagrams retain positions across steps", asyn
   await authenticate(page);
   await page.goto("/");
   await page.getByRole("button", { name: /너비 우선 탐색/ }).click();
+  await expect(page.getByText(/문항 1 \/ 3/)).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
+    .click();
   await expect(page.getByText(/문항 1 \/ 3/)).toBeVisible();
   await page.getByRole("button", { name: "다음 문항", exact: true }).click();
   await expect(page.getByText(/0의 이웃이/)).toBeVisible();
   await page.getByRole("button", { name: "1 [0,1,2,3]", exact: true }).click();
   await page.getByRole("button", { name: "정답 확인", exact: true }).click();
   await expect(page.getByText("정답이에요!", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
+    .click();
   await page.getByLabel("예제 선택", { exact: true }).selectOption("1");
   const node = page.locator('.diagram-node[data-node-id="0"]').first();
   await node.scrollIntoViewIfNeeded();
@@ -153,6 +160,9 @@ test("learning, quizzes and graph/tree explanatory diagrams", async ({
     page.getByRole("img", { name: "그래프의 현재 방문 상태" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "다음 단계" }).click();
+  await page
+    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
+    .click();
   await page.getByRole("button", { name: "2 큐에 넣을 때" }).click();
   await page.getByRole("button", { name: "정답 확인" }).click();
   await expect(page.getByText("정답이에요!")).toBeVisible();
@@ -160,6 +170,9 @@ test("learning, quizzes and graph/tree explanatory diagrams", async ({
     path: "test-results/graph-lesson.png",
     fullPage: true,
   });
+  await page
+    .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
+    .click();
   await page.getByRole("button", { name: "학습 목록" }).click();
   await page.getByRole("button", { name: /이진 트리 순회/ }).click();
   await expect(
@@ -198,8 +211,60 @@ test("workspace autosaves and queues a real request without fabricated execution
     fullPage: true,
   });
   await page
-    .getByRole("button", { name: "이해했어요. 문제 풀기", exact: true })
+    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "기본 개념", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("예제 선택", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "이진 탐색 이해 확인", exact: true }),
+  ).toBeVisible();
+  expect(
+    (await (await page.request.get("/api/records")).json()).records.length,
+  ).toBe(before);
+  await page.screenshot({
+    path: "test-results/separate-practice-screen.png",
+    fullPage: true,
+  });
+  await expect(
+    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "이해했다면, 직접 풀어볼까요?",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "코드로 풀기", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "직접 풀어보기", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", {
+      name: "이해했다면, 직접 풀어볼까요?",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/separate-coding-screen.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "이해 확인으로 돌아가기", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "직접 풀어보기", exact: true })
+    .click();
+  await page.getByRole("button", { name: "코드로 풀기", exact: true }).click();
   await expect(page.getByText("main.py", { exact: true })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "권장 코드 불러오기" }).click();
@@ -256,10 +321,25 @@ test("home groups all topics by type without priority labels and supports search
   await page.locator(".topic-card").click();
   await expect(
     page.getByRole("button", { name: "다른 문제 살펴보기" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "직접 풀어보기", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "다른 문제 살펴보기" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "이해했어요. 문제 풀기" }),
+    page.getByRole("button", { name: "이해했어요. 퀴즈 풀기" }),
   ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "이해 확인으로 돌아가기", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
+    .click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
     page.getByRole("region", { name: "개념에서 문제로" }),
@@ -276,6 +356,47 @@ test("home groups all topics by type without priority labels and supports search
     path: "test-results/learning-mobile-flow.png",
     fullPage: true,
   });
+  await page
+    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
+    .click();
+  await expect(page.getByText(/문항 1 \/ 3/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "코드로 풀기", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "기본 개념", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("every concept includes a concrete purpose and application before the quiz screen", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/");
+  const { topics } = await (await page.request.get("/api/topics")).json();
+  expect(topics).toHaveLength(47);
+  for (const topic of topics) {
+    await page
+      .getByRole("button")
+      .filter({
+        has: page.getByRole("heading", { name: topic.title, exact: true }),
+      })
+      .click();
+    const uses = page.getByRole("region", { name: "사용 용도" });
+    await expect(
+      uses.getByRole("heading", { name: "언제 사용하나요?" }),
+    ).toBeVisible();
+    await expect(
+      uses.getByRole("heading", { name: "대표 활용 사례" }),
+    ).toBeVisible();
+    const descriptions = await uses.locator("p").allTextContents();
+    expect(descriptions).toHaveLength(2);
+    expect(descriptions.every((s: string) => s.length > 25)).toBe(true);
+    await expect(
+      page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "학습 목록", exact: true }).click();
+  }
 });
 test("mobile offers lessons and quizzes, not coding navigation", async ({
   page,

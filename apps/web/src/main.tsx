@@ -1,4 +1,5 @@
 import { QuizPanel } from "./QuizPanel.js";
+import { conceptUses } from "./concept-uses.js";
 import {
   groupLearningTopics,
   learningCategory,
@@ -431,7 +432,9 @@ function App() {
         <nav>
           <button
             className={
-              page === "home" || page === "lesson" ? "nav active" : "nav"
+              ["home", "lesson", "practice"].includes(page)
+                ? "nav active"
+                : "nav"
             }
             onClick={() => void navigate("home")}
           >
@@ -673,7 +676,7 @@ function App() {
       </>
     );
   const actualPage =
-    mobile && ["workspace", "problems", "history"].includes(page)
+    mobile && ["workspace", "problems", "history", "challenges"].includes(page)
       ? "home"
       : page;
   const groups = groupLearningTopics(topics, filter);
@@ -852,59 +855,130 @@ function App() {
                     {s.endsWith(".") ? "" : "."}
                   </p>
                 ))}
+                {conceptUses[topic.id] && (
+                  <section className="concept-uses" aria-label="사용 용도">
+                    <h3>언제 사용하나요?</h3>
+                    <p>{conceptUses[topic.id][0]}</p>
+                    <h3>대표 활용 사례</h3>
+                    <p>{conceptUses[topic.id][1]}</p>
+                  </section>
+                )}
               </article>
               <div className="lesson-example-column">
                 <LessonDiagram topic={topic.id} />
               </div>
             </div>
+            <div className="lesson-next-screen">
+              <p>
+                개념과 예제를 충분히 살펴봤다면 다음 화면에서 이해를 확인해
+                보세요.
+              </p>
+              <button
+                onClick={() => {
+                  setPage("practice");
+                  window.scrollTo(0, 0);
+                }}
+              >
+                이해했어요. 퀴즈 풀기 <ArrowRight size={18} />
+              </button>
+            </div>
+          </>
+        )}
+        {actualPage === "practice" && topic && (
+          <>
+            <button
+              className="text-button"
+              onClick={() => {
+                setPage("lesson");
+                window.scrollTo(0, 0);
+              }}
+            >
+              <ArrowLeft size={16} />
+              개념과 예제로 돌아가기
+            </button>
+            <div className="page-heading">
+              <span className="badge">
+                {learningCategory(topic)} · 이해 확인
+              </span>
+              <h1>{topic.title} 이해 확인</h1>
+              <p>퀴즈로 배운 내용을 확인하세요.</p>
+            </div>
             <div className="lesson-followup">
               <QuizPanel key={topic.id} topic={topic} onError={fail} />
-              {!mobile && (
-                <section
-                  className="panel practice-next"
-                  aria-label="개념에서 문제로"
-                >
-                  <span className="eyebrow">02 · 적용하기</span>
-                  <h2>이해했다면, 직접 풀어볼까요?</h2>
-                  <p>
-                    퀴즈로 이해를 확인하거나, 준비됐다면 바로 코드를 작성해
-                    보세요.
-                  </p>
-                  {relatedProblems.map((p) => (
-                    <article className="practice-choice" key={p.id}>
-                      <h3>{p.title}</h3>
-                      <p>{p.statement}</p>
-                      <small>
-                        공개 테스트 {p.tests.length}개 · Python / C++ / Java
-                      </small>
-                      <button
-                        disabled={busy}
-                        onClick={() => void startPractice(p.id)}
-                      >
-                        이해했어요. 문제 풀기 <ArrowRight size={18} />
-                      </button>
-                    </article>
-                  ))}
-                  {relatedProblems.length === 0 && (
-                    <>
-                      <p>
-                        이 개념의 코드 작성 문제는 아직 준비 중이에요. 예제와
-                        퀴즈로 학습하거나 다른 문제를 살펴볼 수 있어요.
-                      </p>
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          setPage("problems");
-                          window.scrollTo(0, 0);
-                        }}
-                      >
-                        다른 문제 살펴보기 <ArrowRight size={18} />
-                      </button>
-                    </>
-                  )}
-                </section>
-              )}
             </div>
+            {!mobile && (
+              <div className="lesson-next-screen">
+                <p>코드로 적용해 볼 준비가 됐다면 다음 화면으로 이동하세요.</p>
+                <button
+                  onClick={() => {
+                    setPage("challenges");
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  직접 풀어보기 <ArrowRight size={18} />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {actualPage === "challenges" && topic && !mobile && (
+          <>
+            <button
+              className="text-button"
+              onClick={() => {
+                setPage("practice");
+                window.scrollTo(0, 0);
+              }}
+            >
+              <ArrowLeft size={16} />
+              이해 확인으로 돌아가기
+            </button>
+            <div className="page-heading">
+              <span className="badge">
+                {learningCategory(topic)} · 코드 연습
+              </span>
+              <h1>{topic.title}</h1>
+            </div>
+            <section
+              className="panel practice-next"
+              aria-label="개념에서 문제로"
+            >
+              <span className="eyebrow">03 · 적용하기</span>
+              <h2>이해했다면, 직접 풀어볼까요?</h2>
+              <p>문제를 선택하고 배운 개념을 코드로 구현해 보세요.</p>
+              {relatedProblems.map((p) => (
+                <article className="practice-choice" key={p.id}>
+                  <h3>{p.title}</h3>
+                  <p>{p.statement}</p>
+                  <small>
+                    공개 테스트 {p.tests.length}개 · Python / C++ / Java
+                  </small>
+                  <button
+                    disabled={busy}
+                    onClick={() => void startPractice(p.id)}
+                  >
+                    코드로 풀기 <ArrowRight size={18} />
+                  </button>
+                </article>
+              ))}
+              {relatedProblems.length === 0 && (
+                <>
+                  <p>
+                    이 개념의 코드 작성 문제는 아직 준비 중이에요. 예제와 퀴즈로
+                    학습하거나 다른 문제를 살펴볼 수 있어요.
+                  </p>
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setPage("problems");
+                      window.scrollTo(0, 0);
+                    }}
+                  >
+                    다른 문제 살펴보기 <ArrowRight size={18} />
+                  </button>
+                </>
+              )}
+            </section>
           </>
         )}
         {actualPage === "problems" && (
