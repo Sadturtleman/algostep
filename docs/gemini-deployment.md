@@ -6,7 +6,7 @@ Gemini Developer API의 `gemini-3.8-flash`를 기본 리뷰 모델로 연결했�
 
 ## 배포 상태
 
-GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 API를 확인했다. Artifact Registry `us-central1/algostep`를 생성했고 Cloud Build `033ec262-dbaf-4d8a-a5ab-6f9184686b50`에서 서버·웹 이미지 빌드가 성공했다. 운영 서비스는 아직 공개 검증 전이다. Supabase 프로젝트 `qsrxfuybohxdoqrxrsko`와 세션 풀러를 확인했으며 DB Secret 연결, Google OAuth, 실제 워커 이미지 검증을 진행 중이다. 다른 프로젝트의 자원을 사용하지 않는다.
+GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 API를 확인했다. Artifact Registry `us-central1/algostep`에 최종 Cloud Build `8f003900-2a4a-4e15-afd8-7d3ad5954a93` 이미지를 게시해 배포했다. Supabase 프로젝트 `qsrxfuybohxdoqrxrsko`의 세션 풀러, DB Secret, 운영 워커 이미지 연결을 검증했다. 다른 프로젝트의 자원을 사용하지 않는다.
 
 현재 계정의 API 키는 `aiplatform.googleapis.com` 제한 키이므로 `GEMINI_BACKEND=vertex-express`를 사용한다. 기존 키를 메모리에서만 사용한 실제 `gemini-3.8-flash` 호출이 HTTP 200/STOP으로 통과했다(입력 7·출력 1토큰). 승인 후 Secret Manager 저장을 완료했다. Developer API도 별도 설정으로 지원한다.
 
@@ -14,11 +14,7 @@ GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 AP
 
 2026-09-19 Cloud Run 배포 완료. OAuth 앱 `Algostep`의 웹 클라이언트에 실제 서비스 출처를 저장했다. 세션·워커·운영 인증 토큰과 DB 연결 문자열 및 Gemini 키는 Secret Manager로 연결했다. Supabase TLS 연결과 마이그레이션, Scheduler OIDC 호출, 익명 접근 차단을 확인했다. 별도 검증 계정으로 세 언어 AC, 워커 두 대 자동 기동, GCS 추적 저장·조회, Gemini 리뷰 세 항목 반환, PDF HTTP 200을 확인했다. Google 계정 선택 팝업 이후 로그인과 Drive 동의/업로드는 사용자 확인 대기다. OAuth는 외부 테스트 모드이며 공개 출시 승인을 의미하지 않는다.
 
-1. 배포할 프로젝트와 지역을 정하고 결제 연결 및 API 권한을 확인한다.
-2. PostgreSQL, Google OAuth, Secret Manager의 DATABASE_URL/SESSION_SECRET/RUNNER_TOKEN/OPERATIONS_TOKEN/GEMINI_API_KEY를 준비한다.
-3. Cloud Run 이미지 게시, Terraform plan/apply, OAuth 허용 출처 등록을 진행한다. 키는 채팅·Git·tfvars 값에 넣지 않는다.
-4. 별도 KVM 호스트를 연결하고 실제 로그인·세 언어 실행·Gemini 리뷰·PDF·Drive를 확인한다.
-5. Billing의 BigQuery 내보내기를 켜고 실제 비용을 수집한다. 내보내기 이전 사용량은 소급 범위에 제한이 있을 수 있다.
+남은 외부 검증은 Google 로그인 완료, Drive 업로드, Android 운영 로그인이다. Billing의 BigQuery 내보내기를 설정해 실제 비용을 수집하는 작업도 남아 있다. 현재 비용표는 사용량 기반 추정이며 실제 청구서가 아니다. 내보내기 이전 사용량은 소급 범위에 제한이 있을 수 있다.
 
 ## 비용표와 그래프
 
