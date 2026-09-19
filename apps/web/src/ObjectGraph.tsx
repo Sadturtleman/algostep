@@ -1,6 +1,6 @@
 import React from "react";
 // Reference edges come from debugger identity, never inferred from equal values.
-export function ObjectGraph({ vars }: { vars: Record<string, unknown> }) {
+export function ObjectGraph({ vars, educational=false }: { vars: Record<string, unknown>; educational?:boolean }) {
   const nodes = new Map<string, any>(),
     edges: { from: string; to: string; label: string }[] = [],
     roots: { name: string; to: string }[] = [];
@@ -25,19 +25,19 @@ export function ObjectGraph({ vars }: { vars: Record<string, unknown> }) {
   for (const [k, v] of Object.entries(vars)) visit(v, undefined, k);
   if (!nodes.size) return null;
   const all = [...nodes.keys()];
+  const columns=Math.min(nodes.size,innerWidth<600?1:3);
   const pos = (id: string) => ({
-    x: 30 + (all.indexOf(id) % 3) * 230,
-    y: 45 + Math.floor(all.indexOf(id) / 3) * 150,
+    x: 30 + (all.indexOf(id) % columns) * 230,
+    y: 45 + Math.floor(all.indexOf(id) / columns) * 150,
   });
   return (
     <div className="object-graph">
       <h4>객체 참조</h4>
       <p className="caption">
-        {roots.map((r) => `${r.name} → ${r.to}`).join(" · ")} · 객체 ID는 이
-        추적 실행 안에서만 유효해요.
+        {roots.map((r) => `${r.name} → ${r.to}`).join(" · ")} · {educational?'설명용 객체 ID예요.':'객체 ID는 이 추적 실행 안에서만 유효해요.'}
       </p>
       <svg
-        viewBox={`0 0 730 ${Math.ceil(nodes.size / 3) * 150 + 50}`}
+        viewBox={`0 0 ${columns*230+60} ${Math.ceil(nodes.size / columns) * 150 + 50}`}
         role="img"
         aria-label="객체 필드와 참조 관계"
       >

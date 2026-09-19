@@ -286,6 +286,7 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
       : Array.isArray(vars.order)
         ? vars.order
         : null;
+  if(a?.length===0 && Object.values(vars).some((v:any)=>v?.$id))return null;
   if (a)
     return (
       <div className="array">
@@ -433,7 +434,7 @@ export function LessonDiagram({ topic }: { topic: string }) {
       </form>
       <p>{current.note}</p>
       <Structure topic={topic} vars={current.vars} />
-      <ObjectGraph vars={current.vars} />
+      <ObjectGraph vars={current.vars} educational />
       {current.vars.stack && (
         <p>호출 스택: {current.vars.stack.join(" → ") || "비어 있음"}</p>
       )}

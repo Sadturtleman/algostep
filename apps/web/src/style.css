@@ -554,6 +554,8 @@ summary {
   width: 100%;
   max-height: 280px;
 }
+.object-graph { max-height: 600px; overflow: auto; }
+.object-graph svg { max-height: none; height: auto; }
 .lesson-controls {
   display: grid;
   gap: 12px;
