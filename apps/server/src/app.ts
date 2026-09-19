@@ -32,6 +32,8 @@ type Config = {
   production?: boolean;
   storage?: ObjectStorage;
   operationsToken?: string;
+  schedulerAudience?: string;
+  schedulerEmail?: string;
   verifyGoogle?: (
     token: string,
   ) => Promise<{ sub: string; email: string; name: string; nonce?: string }>;
@@ -83,7 +85,7 @@ export async function createApp(c: Config) {
   });
   await app.register(cookie);
   await app.register(cors, { origin: c.origin, credentials: true });
-  await app.register(rateLimit, { max: 240, timeWindow: "1 minute" });
+  await app.register(rateLimit, { max: req=>req.routeOptions.url?.startsWith('/api/internal/')?1200:240, timeWindow: "1 minute" });
   const google = new OAuth2Client(c.googleClientId);
   const verify =
     c.verifyGoogle ??
@@ -124,22 +126,43 @@ export async function createApp(c: Config) {
     });
   });
   app.addHook("preHandler", async (req: any, reply) => {
-    if (!req.routeOptions.url?.startsWith('/api/')) return;
-    const rawPath=req.url.split('?')[0];
-    if(!rawPath.startsWith('/api/') || rawPath.includes('%') || rawPath.includes('//'))
-      throw new DomainError(400,'INVALID_PATH','요청 경로를 확인해 주세요.');
+    if (!req.routeOptions.url?.startsWith("/api/")) return;
+    const rawPath = req.url.split("?")[0];
+    if (
+      !rawPath.startsWith("/api/") ||
+      rawPath.includes("%") ||
+      rawPath.includes("//")
+    )
+      throw new DomainError(400, "INVALID_PATH", "요청 경로를 확인해 주세요.");
     if (req.url.startsWith("/api/operations/")) {
       const token = String(req.headers.authorization ?? "").replace(
         /^Bearer /,
         "",
       );
-      if (
-        !c.operationsToken ||
-        !timingSafeEqual(
+      let allowed =
+        !!c.operationsToken &&
+        timingSafeEqual(
           Buffer.from(hash(token)),
           Buffer.from(hash(c.operationsToken)),
-        )
-      )
+        );
+      if (
+        !allowed &&
+        c.schedulerAudience &&
+        c.schedulerEmail &&
+        req.url === "/api/operations/maintenance"
+      ) {
+        try {
+          const ticket = await google.verifyIdToken({
+            idToken: token,
+            audience: c.schedulerAudience,
+          });
+          const p = ticket.getPayload();
+          allowed = !!p?.email_verified && p.email === c.schedulerEmail;
+        } catch {
+          allowed = false;
+        }
+      }
+      if (!allowed)
         throw new DomainError(401, "UNAUTHORIZED", "인증이 필요해요.");
       return;
     }
@@ -385,10 +408,16 @@ export async function createApp(c: Config) {
         JSON.stringify(q),
       ],
     );
+    const persisted = (
+      await c.db.query(
+        "SELECT * FROM quiz_attempts WHERE user_id=$1 AND request_key=$2",
+        [user(req), v.requestKey],
+      )
+    ).rows[0];
     return {
-      correct: v.answer === q.answer,
-      answer: q.answer,
-      explanation: q.explanation,
+      correct: persisted.correct,
+      answer: persisted.question_snapshot.answer,
+      explanation: persisted.question_snapshot.explanation,
     };
   });
   app.get("/api/problems", async () => ({

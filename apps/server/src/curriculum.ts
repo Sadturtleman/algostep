@@ -435,6 +435,9 @@ export async function seedCurriculum(db: DB) {
     b,
     c,
   ] of lessons) {
+    const choices = [a, b, c];
+    const rotate = [...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 3;
+    const options = [...choices.slice(rotate), ...choices.slice(0, rotate)];
     await db.query(
       "INSERT INTO topics(id,title,category,priority,body,complexity,quiz) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
       [
@@ -446,8 +449,8 @@ export async function seedCurriculum(db: DB) {
         complexity,
         JSON.stringify({
           question,
-          options: [a, b, c],
-          answer: 0,
+          options,
+          answer: options.indexOf(a),
           explanation: a + ". " + body,
         }),
       ],

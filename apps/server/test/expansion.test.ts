@@ -13,7 +13,7 @@ import {
 } from "../src/object-storage.js";
 import { equivalent, staticFindings } from "../src/static-analysis.js";
 import { catalog } from "../src/content-admin.js";
-process.env.NODE_ENV='test';
+process.env.NODE_ENV = "test";
 test("migration is repeatable and preserves saved data", async () => {
   const db = await database();
   try {

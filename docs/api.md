@@ -53,3 +53,11 @@
 - `POST /internal/executions/:id/result`: `{token, result}` 또는 `{token, systemError}`. 유효 임대에만 결과를 반영하며 중복/늦은 결과는 `accepted:false`.
 
 VM 게스트에는 사용자 코드·테스트·제한 값만 전달한다. 서버 API 토큰, Google 세션, LLM 키는 전달하지 않는다.
+# 추가 운영·Android 계약
+
+- POST `/api/auth/challenge`: 허용 Origin에서만 5분 일회용 nonce 발급, HttpOnly 쿠키 연결.
+- POST `/api/auth/google`: `client: "android"`이면 토큰 nonce·쿠키·DB challenge를 검증/소비하고 학습 전용 세션을 만든다.
+- Android 세션은 `/me`, `/topics`, `/quiz/:topic`, `/auth/logout`만 허용한다. `/config`와 `/health`는 공개 설정/상태다.
+- `/api/operations/ready`, `/metrics`는 별도 OPERATIONS_TOKEN으로 보호한다. `/maintenance`는 이 토큰 또는 지정된 Google 스케줄러 계정의 OIDC 토큰으로 호출한다.
+- 기록/실행 조회는 소유권 확인 후 GCS 추적을 복원한다. 비공개 객체의 공개 URL을 반환하지 않는다.
+- PDF 동시 생성 상한은 429/PDF_BUSY, 데이터 16MiB 초과는 422/PDF_TOO_LARGE. 둘 다 기록을 삭제하거나 이용량을 차감하지 않는다.

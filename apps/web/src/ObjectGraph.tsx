@@ -4,8 +4,9 @@ export function ObjectGraph({ vars }: { vars: Record<string, unknown> }) {
   const nodes = new Map<string, any>(),
     edges: { from: string; to: string; label: string }[] = [],
     roots: { name: string; to: string }[] = [];
-  function visit(v: any, parent?: string, label = "") {
-    if (!v || typeof v !== "object") return;
+  let visited=0;
+  function visit(v: any, parent?: string, label = "", depth=0) {
+    if (!v || typeof v !== "object" || depth>7 || ++visited>1000) return;
     const ref =
       typeof v.$ref === "string"
         ? v.$ref
@@ -13,12 +14,12 @@ export function ObjectGraph({ vars }: { vars: Record<string, unknown> }) {
           ? v.$id
           : undefined;
     if (ref && parent) edges.push({ from: parent, to: ref, label });
-    if (v.$id && !nodes.has(v.$id) && nodes.size < 30) {
+    if (typeof v.$id==='string' && !nodes.has(v.$id) && nodes.size < 30) {
       nodes.set(v.$id, v);
-      for (const [k, x] of Object.entries(v.fields ?? {})) visit(x, v.$id, k);
+      for (const [k, x] of Object.entries(v.fields ?? {}).slice(0,30)) visit(x, v.$id, k,depth+1);
     } else if (!ref)
       for (const [k, x] of Object.entries(v).slice(0, 30))
-        visit(x, parent, label ? `${label}.${k}` : k);
+        visit(x, parent, label ? `${label}.${k}` : k,depth+1);
     if (ref && !parent) roots.push({ name: label, to: ref });
   }
   for (const [k, v] of Object.entries(vars)) visit(v, undefined, k);

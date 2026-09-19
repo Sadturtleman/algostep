@@ -17,3 +17,7 @@ apps/android/**/build/
 apps/android/local.properties
 *.jks
 *.keystore
+**/.terraform/
+*.tfstate*
+*.tfvars
+*.tfplan

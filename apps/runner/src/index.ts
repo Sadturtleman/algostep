@@ -1,5 +1,7 @@
 import { runIsolated } from "./firecracker.js";
 import { validateJob } from "./protocol.js";
+import { verifyProductionImages } from "./images.js";
+await verifyProductionImages();
 const api = process.env.API_URL ?? "http://localhost:3001",
   token = process.env.RUNNER_TOKEN;
 if (!token || token.length < 32 || token.startsWith("replace-"))

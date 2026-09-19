@@ -2,7 +2,7 @@
 
 알고리즘을 학습하고, 문제의 전체 프로그램을 작성해 실행 과정을 확인하는 웹 서비스입니다. 기존 Figma의 로고·컬러·화면 구성으로 구현했습니다.
 
-**현재 상태: 개발용 구현. 공개 서비스 출시 완료 상태가 아닙니다.** Google/LLM/Drive 실계정 연동과 PG 계약·가격 설정, 실행 호스트 검증, 고급 시각화 및 콘텐츠 확장이 필요합니다. 자세한 범위는 [구현 상태](docs/implementation-status.md)를 확인하세요.
+**현재 상태: 웹·서버·Android 개발 구현. 공개 서비스 출시 완료 상태가 아닙니다.** 47개 학습 주제, P0 인터랙티브 예제, 15개 실행 문제와 3개 언어 추적을 제공하며 외부 계정·도메인·운영 호스트 설정이 필요합니다. 결제는 정책 미정으로 비활성입니다. [지원 범위와 외부 설정](docs/implementation-status.md)을 확인하세요.
 
 ## 프로젝트 구조
 
@@ -10,7 +10,8 @@
 apps/web       React · TypeScript · Vite · Monaco 웹 클라이언트
 apps/server    Fastify API · Google 인증 · PostgreSQL · 비동기 리뷰
 apps/runner    Linux KVM · Firecracker jailer · 실행 워커/게스트
-infra          프록시 설정
+apps/android   Kotlin WebView · 네이티브 Google 로그인 · 학습/퀴즈
+infra          프록시 · Cloud Run 이미지 · GCP Terraform
 docs           ERD · 배포 · 구현 범위
 tests          실제 API에 연결하는 브라우저 통합 테스트
 ```
@@ -52,5 +53,10 @@ GitHub Actions는 별도 PostgreSQL 17에서도 검사하고 브라우저 스크
 - [API 계약](docs/api.md)
 - [배포 및 VM 설정](docs/deployment.md)
 - [구현 범위와 남은 작업](docs/implementation-status.md)
+- [Android 빌드와 OAuth](docs/android.md)
+- [저비용 GCP 구성 검토](docs/gcp-cost-plan.md)
+- [마이그레이션·백업·콘텐츠 관리·관측](docs/operations.md)
+
+Monaco는 npm의 workspace 링크 경계 override 문제를 피하기 위해 루트 의존성에 둡니다. DOMPurify 보안 수정 버전을 루트 override로 적용하며 `npm audit`로 확인합니다.
 
 Figma 원본: https://www.figma.com/design/lPDjWigwlNvT2oAjAjxoyx

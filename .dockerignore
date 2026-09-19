@@ -10,3 +10,8 @@ apps/android
 .env.*
 *.jks
 *.keystore
+**/.terraform
+**/*.tfstate*
+**/*.tfvars
+*.pem
+*.key

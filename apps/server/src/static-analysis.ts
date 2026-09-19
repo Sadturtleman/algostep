@@ -96,12 +96,35 @@ export function equivalent(
   reference: string,
   language: string,
 ) {
-  if(source.includes('\\\n')||reference.includes('\\\n')||source.includes('\\\r\n')||reference.includes('\\\r\n'))return false;
-  if(language==='cpp') {
-    const directives=(s:string)=>s.split(/\r?\n/).filter(l=>/^\s*#/.test(l)).map(l=>l.trimEnd());
-    if(JSON.stringify(directives(source))!==JSON.stringify(directives(reference)))return false;
+  if (
+    source.includes("\\\n") ||
+    reference.includes("\\\n") ||
+    source.includes("\\\r\n") ||
+    reference.includes("\\\r\n")
+  )
+    return false;
+  if (language === "cpp") {
+    const directives = (s: string) =>
+      s
+        .split(/\r?\n/)
+        .filter((l) => /^\s*#/.test(l))
+        .map((l) => l.trimEnd());
+    if (
+      JSON.stringify(directives(source)) !==
+      JSON.stringify(directives(reference))
+    )
+      return false;
   }
-  if(language==='python' && [source,reference].some(s=>s.split(/\r?\n/).slice(0,2).some(l=>/coding\s*[:=]/.test(l))))return false;
+  if (
+    language === "python" &&
+    [source, reference].some((s) =>
+      s
+        .split(/\r?\n/)
+        .slice(0, 2)
+        .some((l) => /coding\s*[:=]/.test(l)),
+    )
+  )
+    return false;
   if (language === "python") {
     // Keep physical line structure: multiline strings and continuations matter.
     if (source.includes("\\\n") || reference.includes("\\\n")) return false;

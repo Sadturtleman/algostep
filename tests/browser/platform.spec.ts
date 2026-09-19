@@ -171,13 +171,33 @@ test("worker result contract renders actual supplied trace and strict outputs", 
     {
       line: 8,
       event: "line",
-      locals: { g: [[1], [0]], v: 0, q: [1], seen: [true, true], head:{$id:'java@1',$type:'Node',fields:{value:7,next:{$ref:'java@1'}}} },
+      locals: {
+        g: [[1], [0]],
+        v: 0,
+        q: [1],
+        seen: [true, true],
+        head: {
+          $id: "java@1",
+          $type: "Node",
+          fields: { value: 7, next: { $ref: "java@1" } },
+        },
+      },
       stack: ["main"],
     },
     {
       line: 9,
       event: "line",
-      locals: { g: [[1], [0]], v: 1, q: [], seen: [true, true], head:{$id:'java@1',$type:'Node',fields:{value:7,next:{$ref:'java@1'}}} },
+      locals: {
+        g: [[1], [0]],
+        v: 1,
+        q: [],
+        seen: [true, true],
+        head: {
+          $id: "java@1",
+          $type: "Node",
+          fields: { value: 7, next: { $ref: "java@1" } },
+        },
+      },
       stack: ["main"],
     },
   ];
@@ -220,16 +240,52 @@ test("worker result contract renders actual supplied trace and strict outputs", 
   ).toBeVisible();
   await page.getByRole("button", { name: "다음 단계", exact: true }).click();
   await expect(page.getByText("2 / 2 단계")).toBeVisible();
-  await expect(page.getByRole('img',{name:'객체 필드와 참조 관계'})).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "객체 필드와 참조 관계" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "테스트 결과", exact: true }).click();
   await expect(page.getByText("13 ms", { exact: true })).toBeVisible();
   await expect(page.getByText('"0 1\\n"', { exact: true })).toBeVisible();
 });
-test('Android tablet remains learning-only at desktop width',async({page})=>{
-  await page.addInitScript(()=>{(window as any).AlgostepNative={postMessage:()=>{}};});
-  await page.setViewportSize({width:1440,height:900});
-  await authenticate(page);await page.goto('/');
-  await expect(page.getByRole('heading',{name:'개념별 학습'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'문제 풀기',exact:true})).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'내 기록',exact:true})).toHaveCount(0);
+test("Android tablet remains learning-only at desktop width", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    (window as any).AlgostepNative = { postMessage: () => {} };
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await authenticate(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "개념별 학습" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "문제 풀기", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "내 기록", exact: true }),
+  ).toHaveCount(0);
+});
+test('mobile P0 examples accept input and display sorting and references',async({page})=>{
+  await authenticate(page);await page.setViewportSize({width:390,height:844});await page.goto('/');
+  await page.getByRole('button',{name:/버블 정렬/}).click();
+  await page.getByLabel('예제 값',{exact:true}).fill('3, 1, 2');
+  await page.getByRole('button',{name:'예제 적용 · 처음부터'}).click();
+  const next=page.getByRole('button',{name:'다음 단계',exact:true});
+  for(let i=0;i<8 && await next.isEnabled();i++)await next.click();
+  await expect(page.getByText('정렬 완료',{exact:true})).toBeVisible();
+  await expect(page.locator('.array strong')).toHaveText(['1','2','3']);
+  await page.getByRole('button',{name:'학습 목록',exact:true}).click();
+  await page.getByRole('button',{name:/단일 연결 리스트/}).click();
+  await page.getByRole('button',{name:'다음 단계',exact:true}).click();
+  await expect(page.getByRole('img',{name:'객체 필드와 참조 관계'})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:'test-results/mobile-linked-list.png',fullPage:true});
+});
+test('unexpected rendering errors provide a full-screen recovery action',async({page})=>{
+  await authenticate(page);
+  await page.route('**/api/topics',route=>route.fulfill({json:{topics:[{id:'bad',title:'Malformed response',category:'test',priority:'P0',body:null}]}}));
+  await page.goto('/');
+  await expect(page.getByRole('heading',{name:'화면을 표시하지 못했어요'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'화면 다시 열기'})).toBeVisible();
 });

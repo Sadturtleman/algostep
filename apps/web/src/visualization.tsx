@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ObjectGraph } from "./ObjectGraph.js";
+import { lessonFrames } from "./lesson-model.js";
 export function TraceViewer({
   trace,
   topic,
@@ -114,6 +115,29 @@ export function TraceViewer({
   );
 }
 function Structure({ vars, topic }: { vars: any; topic: string }) {
+  const matrix = topic === "graph-matrix" ? vars.matrix : vars.buckets;
+  if (Array.isArray(matrix))
+    return (
+      <div style={{ overflowX: "auto" }}>
+        <table>
+          <caption>
+            {topic === "graph-matrix" ? "인접 행렬" : "해시 버킷과 체인"}
+          </caption>
+          <tbody>
+            {matrix.map((row: any[], i: number) => (
+              <tr key={i}>
+                <th>{i}</th>
+                {row.map((v, j) => (
+                  <td key={j} style={{ padding: "8px" }}>
+                    {String(v)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   const entries = Object.entries(vars);
   const arrays = entries.filter(([, v]) => Array.isArray(v));
   const adjacency = arrays.filter(
@@ -238,7 +262,7 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
                 className={
                   vars.index === i
                     ? "node active"
-                    : vars.order?.includes(v)
+                    : Array.isArray(vars.order) && vars.order.includes(v)
                       ? "node visited"
                       : "node"
                 }
@@ -257,9 +281,11 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
   }
   const a = Array.isArray(vars.a)
     ? vars.a
-    : Array.isArray(vars.order)
-      ? vars.order
-      : null;
+    : Array.isArray(vars.values)
+      ? vars.values
+      : Array.isArray(vars.order)
+        ? vars.order
+        : null;
   if (a)
     return (
       <div className="array">
@@ -322,15 +348,105 @@ export function LessonDiagram({ topic }: { topic: string }) {
     ],
   };
   const [step, setStep] = useState(0);
+  const [text, setText] = useState("2, 5, 8, 13, 21, 34, 55");
+  const [target, setTarget] = useState(21);
+  const [values, setValues] = useState([2, 5, 8, 13, 21, 34, 55]);
+  const [invalid, setInvalid] = useState("");
+  const computed = lessonFrames(topic, values, target);
+  const frames = computed.length
+    ? computed
+    : (presets[topic] ?? []).map((vars: any) => ({
+        vars,
+        note: "설명용 예제",
+      }));
   useEffect(() => setStep(0), [topic]);
-  if (!presets[topic]) return null;
+  if (!frames.length) return null;
+  const current = frames[Math.min(step, frames.length - 1)];
   return (
     <section className="panel">
       <div className="section-heading">
         <h3>개념을 한 단계씩</h3>
         <span className="badge">설명용 예제</span>
       </div>
-      <Structure topic={topic} vars={presets[topic][step]} />
+      <form
+        className="lesson-controls"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const nums = text
+            .split(/[,\s]+/)
+            .filter(Boolean)
+            .map(Number);
+          if (
+            !nums.length ||
+            nums.length > 8 ||
+            nums.some((n) => !Number.isInteger(n) || Math.abs(n) > 1000)
+          ) {
+            setInvalid("정수 1~8개를 입력하세요. 각 값은 -1000~1000이에요.");
+            return;
+          }
+          setValues(nums);
+          setStep(0);
+          setInvalid("");
+        }}
+      >
+        <label>
+          예제 값{" "}
+          <input
+            aria-label="예제 값"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </label>
+        {[
+          "binary-search",
+          "linear-search",
+          "two-pointer",
+          "greedy",
+          "recursion",
+          "dp",
+          "memoization",
+          "tabulation",
+        ].includes(topic) && (
+          <label>
+            {["recursion", "dp", "memoization", "tabulation"].includes(topic)
+              ? "계산할 크기"
+              : "목표 값"}{" "}
+            <input
+              aria-label="예제 목표"
+              type="number"
+              min="0"
+              max="1000"
+              value={target}
+              onChange={(e) => {
+                setTarget(
+                  Math.min(1000, Math.max(0, Number(e.target.value) || 0)),
+                );
+                setStep(0);
+              }}
+            />
+          </label>
+        )}
+        <button className="secondary" type="submit">
+          예제 적용 · 처음부터
+        </button>
+        {invalid && <p role="alert">{invalid}</p>}
+      </form>
+      <p>{current.note}</p>
+      <Structure topic={topic} vars={current.vars} />
+      <ObjectGraph vars={current.vars} />
+      {current.vars.stack && (
+        <p>호출 스택: {current.vars.stack.join(" → ") || "비어 있음"}</p>
+      )}
+      <p className="caption">
+        설명용 예제이며 제출 코드의 실행 결과와는 달라요.
+        {["bfs", "dfs", "graph-list", "graph-matrix"].includes(topic) &&
+          " 입력 값으로 예제 간선을 구성해요."}
+        {topic === "recursion" &&
+          " 호출이 길어지지 않도록 크기는 최대 6을 사용해요."}
+        {["dp", "memoization", "tabulation"].includes(topic) &&
+          " 피보나치 수를 최대 12까지 계산해요."}
+        {topic === "backtracking" && " 처음 5개 원소의 부분집합을 탐색해요."}
+      </p>
       <div className="playback">
         <button
           className="secondary"
@@ -340,10 +456,10 @@ export function LessonDiagram({ topic }: { topic: string }) {
           이전
         </button>
         <span>
-          {step + 1} / {presets[topic].length}
+          {Math.min(step + 1, frames.length)} / {frames.length}
         </span>
         <button
-          disabled={step === presets[topic].length - 1}
+          disabled={step >= frames.length - 1}
           onClick={() => setStep(step + 1)}
         >
           다음 단계

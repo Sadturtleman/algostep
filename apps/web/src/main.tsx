@@ -1329,4 +1329,9 @@ function App() {
     </>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+class AppBoundary extends React.Component<React.PropsWithChildren,{failed:boolean}> {
+  state={failed:false};
+  static getDerivedStateFromError(){return {failed:true};}
+  render(){return this.state.failed?<main className="system-error"><img src="/logo.svg" width="150" alt="Algostep"/><h1>화면을 표시하지 못했어요</h1><p>화면을 다시 열어 주세요. 마지막 자동 저장 이후의 변경은 복구되지 않을 수 있어요.</p><button onClick={()=>location.reload()}>화면 다시 열기</button></main>:this.props.children;}
+}
+createRoot(document.getElementById("root")!).render(<AppBoundary><App /></AppBoundary>);

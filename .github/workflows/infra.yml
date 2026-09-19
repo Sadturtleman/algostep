@@ -1,0 +1,21 @@
+name: Deployment configuration
+on:
+  push:
+    branches: [main, 'codex/**']
+    paths: ['infra/gcp/**', 'infra/Dockerfile.cloudrun', '.github/workflows/infra.yml', 'package-lock.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+      - run: terraform -chdir=infra/gcp fmt -check
+      - run: terraform -chdir=infra/gcp init -backend=false
+      - run: terraform -chdir=infra/gcp validate
+      - run: docker build -f infra/Dockerfile.cloudrun -t algostep-cloudrun-check .
