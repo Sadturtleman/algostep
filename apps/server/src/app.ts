@@ -124,7 +124,10 @@ export async function createApp(c: Config) {
     });
   });
   app.addHook("preHandler", async (req: any, reply) => {
-    if (!req.url.startsWith("/api/")) return;
+    if (!req.routeOptions.url?.startsWith('/api/')) return;
+    const rawPath=req.url.split('?')[0];
+    if(!rawPath.startsWith('/api/') || rawPath.includes('%') || rawPath.includes('//'))
+      throw new DomainError(400,'INVALID_PATH','요청 경로를 확인해 주세요.');
     if (req.url.startsWith("/api/operations/")) {
       const token = String(req.headers.authorization ?? "").replace(
         /^Bearer /,
