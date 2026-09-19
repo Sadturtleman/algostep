@@ -9,8 +9,13 @@ import { GcsStorage } from "./object-storage.js";
 import { maintenance } from "./maintenance.js";
 import staticFiles from "@fastify/static";
 const production = process.env.NODE_ENV === "production";
-if(production && process.env.OPERATIONS_TOKEN && (process.env.OPERATIONS_TOKEN.length<32 || process.env.OPERATIONS_TOKEN.startsWith('replace-')))
-  throw new Error('Use a strong OPERATIONS_TOKEN.');
+if (
+  production &&
+  process.env.OPERATIONS_TOKEN &&
+  (process.env.OPERATIONS_TOKEN.length < 32 ||
+    process.env.OPERATIONS_TOKEN.startsWith("replace-"))
+)
+  throw new Error("Use a strong OPERATIONS_TOKEN.");
 if (
   production &&
   (!process.env.DATABASE_URL ||
@@ -46,6 +51,7 @@ const app = await createApp({
   operationsToken: process.env.OPERATIONS_TOKEN,
   schedulerAudience: process.env.SCHEDULER_AUDIENCE,
   schedulerEmail: process.env.SCHEDULER_EMAIL,
+  adminEmails: (process.env.ADMIN_EMAILS ?? "").split(","),
 });
 if (process.env.WEB_DIST)
   await app.register(staticFiles, {

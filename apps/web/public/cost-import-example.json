@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "sourceKey": "REPLACE_WITH_UNIQUE_BILLING_ROW_KEY",
+      "usageDate": "2026-09-19",
+      "service": "REPLACE_WITH_SERVICE",
+      "currency": "KRW",
+      "amount": 0,
+      "source": "REPLACE_WITH_VERIFIED_BILLING_SOURCE"
+    }
+  ]
+}

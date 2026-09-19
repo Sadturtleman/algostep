@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requestReview, type LlmOptions } from "./llm.js";
 import type { DB } from "./db.js";
 import { id, releaseReview } from "./domain.js";
+import { businessEvent } from "./business.js";
 const resultSchema = z.object({
   logicalErrors: z.string().min(1).max(15000),
   efficiencyImprovements: z.string().min(1).max(15000),
@@ -75,6 +76,14 @@ export async function processReview(db: DB, options: LlmOptions) {
       await tx.query(
         "INSERT INTO review_credit_events(id,allowance_id,review_id,request_ref,type) VALUES($1,$2,$3,$3,'CONSUME')",
         [id(), task.allowance_id, task.id],
+      );
+      await businessEvent(
+        tx,
+        "REVIEW_SUCCEEDED",
+        task.user_id,
+        task.id,
+        "review-terminal:" + task.id,
+        { model: options.model },
       );
     });
   } catch {

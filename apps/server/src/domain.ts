@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import type { DB } from "./db.js";
 import { equivalent, staticFindings } from "./static-analysis.js";
+import { businessEvent } from "./business.js";
 export const id = randomUUID;
 export const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -57,8 +58,27 @@ export async function releaseReview(db: DB, review: any, reason: string) {
     "INSERT INTO review_credit_events(id,allowance_id,review_id,request_ref,type) VALUES($1,$2,$3,$3,'RELEASE')",
     [id(), review.allowance_id, review.id],
   );
+  await businessEvent(
+    db,
+    "REVIEW_FAILED",
+    review.user_id,
+    review.id,
+    "review-terminal:" + review.id,
+    { reason },
+  );
 }
 export async function deleteRecord(db: DB, record: string) {
+  const owner = (
+    await db.query("SELECT user_id FROM records WHERE id=$1", [record])
+  ).rows[0];
+  if (owner)
+    await businessEvent(
+      db,
+      "RECORD_DELETED",
+      owner.user_id,
+      record,
+      "record-deleted:" + record,
+    );
   for (const row of (
     await db.query(
       "SELECT result->'traceObject'->>'key' AS key FROM executions WHERE record_id=$1 AND result ? 'traceObject'",
