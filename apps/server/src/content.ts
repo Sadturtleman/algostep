@@ -1,4 +1,6 @@
 import type { DB } from "./db.js";
+import { seedCurriculum } from "./curriculum.js";
+import { seedPractice } from "./practice.js";
 export const languages = ["python", "cpp", "java"] as const;
 const pyBinary = `n = int(input())\na = list(map(int, input().split()))\ntarget = int(input())\nleft, right = 0, n - 1\nanswer = -1\nwhile left <= right:\n    mid = (left + right) // 2\n    if a[mid] == target:\n        answer = mid\n        break\n    if a[mid] < target:\n        left = mid + 1\n    else:\n        right = mid - 1\nprint(answer)\n`;
 const cppBinary = `#include <iostream>\n#include <vector>\nusing namespace std;\nint main() {\n    int n, target; cin >> n; vector<int> a(n);\n    for (auto &x : a) cin >> x;\n    cin >> target; int left=0, right=n-1, answer=-1;\n    while (left<=right) {\n        int mid=left+(right-left)/2;\n        if(a[mid]==target) { answer=mid; break; }\n        if(a[mid]<target) left=mid+1; else right=mid-1;\n    }\n    cout << answer << '\\n';\n}\n`;
@@ -213,6 +215,7 @@ const problems = [
 ];
 export async function seed(db: DB) {
   await db.tx(async (tx) => {
+    await seedCurriculum(tx);
     for (const [
       key,
       title,
@@ -253,5 +256,6 @@ export async function seed(db: DB) {
           JSON.stringify(starters),
         ],
       );
+    await seedPractice(tx);
   });
 }

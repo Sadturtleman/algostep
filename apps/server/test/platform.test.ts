@@ -84,7 +84,7 @@ test("anonymous access and CSRF mutations are blocked", async () => {
   );
   assert.equal(
     (await request(u, "GET", "/api/problems")).json().problems.length,
-    3,
+    15,
   );
 });
 test("one user cannot read, edit or delete another user record", async () => {

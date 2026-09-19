@@ -8,11 +8,11 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "@monaco-editor/react": "^4.7.0",
-    "monaco-editor": "^0.55.0",
-    "lucide-react": "^0.577.0"
+    "lucide-react": "^0.577.0",
+    "monaco-editor": "^0.56.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "vite": "^7.3.0"

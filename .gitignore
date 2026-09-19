@@ -12,3 +12,8 @@ playwright-report/
 apps/runner/images/
 *.pem
 *.key
+**/.gradle/
+apps/android/**/build/
+apps/android/local.properties
+*.jks
+*.keystore

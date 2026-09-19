@@ -3,6 +3,10 @@ declare module "*?worker" {
   export default WorkerConstructor;
 }
 interface Window {
+  AlgostepNative?: {
+    postMessage(message: string): void;
+    onmessage?: (event: { data: string }) => void;
+  };
   google?: any;
   MonacoEnvironment?: any;
 }

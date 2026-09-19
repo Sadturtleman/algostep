@@ -171,13 +171,13 @@ test("worker result contract renders actual supplied trace and strict outputs", 
     {
       line: 8,
       event: "line",
-      locals: { g: [[1], [0]], v: 0, q: [1], seen: [true, true] },
+      locals: { g: [[1], [0]], v: 0, q: [1], seen: [true, true], head:{$id:'java@1',$type:'Node',fields:{value:7,next:{$ref:'java@1'}}} },
       stack: ["main"],
     },
     {
       line: 9,
       event: "line",
-      locals: { g: [[1], [0]], v: 1, q: [], seen: [true, true] },
+      locals: { g: [[1], [0]], v: 1, q: [], seen: [true, true], head:{$id:'java@1',$type:'Node',fields:{value:7,next:{$ref:'java@1'}}} },
       stack: ["main"],
     },
   ];
@@ -220,7 +220,16 @@ test("worker result contract renders actual supplied trace and strict outputs", 
   ).toBeVisible();
   await page.getByRole("button", { name: "다음 단계", exact: true }).click();
   await expect(page.getByText("2 / 2 단계")).toBeVisible();
+  await expect(page.getByRole('img',{name:'객체 필드와 참조 관계'})).toBeVisible();
   await page.getByRole("button", { name: "테스트 결과", exact: true }).click();
   await expect(page.getByText("13 ms", { exact: true })).toBeVisible();
   await expect(page.getByText('"0 1\\n"', { exact: true })).toBeVisible();
+});
+test('Android tablet remains learning-only at desktop width',async({page})=>{
+  await page.addInitScript(()=>{(window as any).AlgostepNative={postMessage:()=>{}};});
+  await page.setViewportSize({width:1440,height:900});
+  await authenticate(page);await page.goto('/');
+  await expect(page.getByRole('heading',{name:'개념별 학습'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'문제 풀기',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'내 기록',exact:true})).toHaveCount(0);
 });

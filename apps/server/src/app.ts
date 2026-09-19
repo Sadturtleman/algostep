@@ -19,6 +19,8 @@ import {
 } from "./domain.js";
 import { languages } from "./content.js";
 import { renderPdf } from "./pdf.js";
+import { externalize, hydrate, type ObjectStorage } from "./object-storage.js";
+import { maintenance } from "./maintenance.js";
 
 type Config = {
   db: DB;
@@ -28,9 +30,11 @@ type Config = {
   runnerToken: string;
   llmEnabled: boolean;
   production?: boolean;
+  storage?: ObjectStorage;
+  operationsToken?: string;
   verifyGoogle?: (
     token: string,
-  ) => Promise<{ sub: string; email: string; name: string }>;
+  ) => Promise<{ sub: string; email: string; name: string; nonce?: string }>;
 };
 const source = z.string().max(65536),
   key = z.string().min(8).max(100),
@@ -91,7 +95,12 @@ export async function createApp(c: Config) {
       const p = ticket.getPayload();
       if (!p?.sub || !p.email || !p.email_verified)
         throw new Error("Invalid Google identity");
-      return { sub: p.sub, email: p.email, name: p.name ?? p.email };
+      return {
+        sub: p.sub,
+        email: p.email,
+        name: p.name ?? p.email,
+        nonce: (p as any).nonce,
+      };
     });
   const sessionDigest = (token: string) => hash(c.sessionSecret + token);
   app.setErrorHandler((err: any, _req, reply) => {
@@ -115,6 +124,22 @@ export async function createApp(c: Config) {
     });
   });
   app.addHook("preHandler", async (req: any, reply) => {
+    if (!req.url.startsWith("/api/")) return;
+    if (req.url.startsWith("/api/operations/")) {
+      const token = String(req.headers.authorization ?? "").replace(
+        /^Bearer /,
+        "",
+      );
+      if (
+        !c.operationsToken ||
+        !timingSafeEqual(
+          Buffer.from(hash(token)),
+          Buffer.from(hash(c.operationsToken)),
+        )
+      )
+        throw new DomainError(401, "UNAUTHORIZED", "인증이 필요해요.");
+      return;
+    }
     if (req.url.startsWith("/api/internal/")) {
       const token = String(req.headers.authorization ?? "").replace(
         /^Bearer /,
@@ -145,17 +170,26 @@ export async function createApp(c: Config) {
         "ORIGIN_INVALID",
         "요청 출처를 확인할 수 없어요.",
       );
-    if (req.url === "/api/auth/google") return;
+    if (["/api/auth/google", "/api/auth/challenge"].includes(req.url)) return;
     const token = req.cookies.session;
     if (!token)
       throw new DomainError(401, "AUTH_REQUIRED", "Google 로그인이 필요해요.");
     const { rows } = await c.db.query(
-      "SELECT s.csrf,u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.expires_at>now()",
+      "SELECT s.csrf,s.client,u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.expires_at>now()",
       [sessionDigest(token)],
     );
     if (!rows[0])
       throw new DomainError(401, "SESSION_EXPIRED", "다시 로그인해 주세요.");
     req.user = rows[0];
+    if (
+      rows[0].client === "android" &&
+      !/^\/api\/(me|topics|quiz\/[^/?]+|auth\/logout)(\?|$)/.test(req.url)
+    )
+      throw new DomainError(
+        403,
+        "LEARNING_ONLY",
+        "Android 앱에서는 설명과 퀴즈를 이용할 수 있어요.",
+      );
     if (
       !["GET", "HEAD"].includes(req.method) &&
       req.headers["x-csrf-token"] !== rows[0].csrf
@@ -167,6 +201,54 @@ export async function createApp(c: Config) {
       );
   });
   const user = (req: any) => req.user.id as string;
+  app.get("/api/operations/metrics", async () => ({
+    executions: (
+      await c.db.query(
+        "SELECT status,count(*)::int AS count,min(created_at) AS oldest FROM executions GROUP BY status",
+      )
+    ).rows,
+    reviews: (
+      await c.db.query(
+        "SELECT status,count(*)::int AS count,min(created_at) AS oldest FROM reviews GROUP BY status",
+      )
+    ).rows,
+    pendingObjectDeletions: (
+      await c.db.query("SELECT count(*)::int AS count FROM object_deletions")
+    ).rows[0].count,
+    migrations: (
+      await c.db.query(
+        "SELECT version,applied_at FROM schema_migrations ORDER BY version",
+      )
+    ).rows,
+  }));
+  app.post("/api/operations/maintenance", async () => {
+    await maintenance(c.db, c.storage);
+    return { ok: true };
+  });
+  app.get("/api/operations/ready", async () => {
+    await c.db.query("SELECT 1");
+    return { ok: true };
+  });
+  app.post(
+    "/api/auth/challenge",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (_req, reply) => {
+      const nonce = randomBytes(32).toString("hex");
+      await c.db.query("DELETE FROM auth_challenges WHERE expires_at<=now()");
+      await c.db.query(
+        "INSERT INTO auth_challenges(nonce_hash,expires_at) VALUES($1,now()+interval '5 minutes')",
+        [hash(nonce)],
+      );
+      reply.setCookie("auth_nonce", nonce, {
+        httpOnly: true,
+        secure: !!c.production,
+        sameSite: "strict",
+        path: "/api/auth",
+        maxAge: 300,
+      });
+      return { nonce };
+    },
+  );
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/config", async () => ({
     googleClientId: c.googleClientId,
@@ -184,8 +266,11 @@ export async function createApp(c: Config) {
           "AUTH_NOT_CONFIGURED",
           "Google 로그인 설정이 필요해요.",
         );
-      const { credential } = z
-        .object({ credential: z.string().min(10).max(8192) })
+      const { credential, client } = z
+        .object({
+          credential: z.string().min(10).max(8192),
+          client: z.enum(["web", "android"]).default("web"),
+        })
         .parse(req.body);
       let p;
       try {
@@ -200,13 +285,32 @@ export async function createApp(c: Config) {
       const token = randomBytes(32).toString("hex"),
         csrf = randomBytes(24).toString("hex");
       const account = await c.db.tx(async (db) => {
+        if (client === "android") {
+          const nonce = req.cookies.auth_nonce;
+          if (!nonce || p.nonce !== nonce)
+            throw new DomainError(
+              401,
+              "GOOGLE_TOKEN_INVALID",
+              "다시 로그인해 주세요.",
+            );
+          const used = await db.query(
+            "DELETE FROM auth_challenges WHERE nonce_hash=$1 AND expires_at>now() RETURNING nonce_hash",
+            [hash(nonce)],
+          );
+          if (!used.rows.length)
+            throw new DomainError(
+              401,
+              "GOOGLE_TOKEN_INVALID",
+              "로그인 요청이 만료됐어요.",
+            );
+        }
         const { rows } = await db.query(
           "INSERT INTO users(id,google_subject,email,display_name) VALUES($1,$2,$3,$4) ON CONFLICT(google_subject) DO UPDATE SET email=excluded.email,display_name=excluded.display_name RETURNING *",
           [id(), p.sub, p.email, p.name],
         );
         await db.query(
-          "INSERT INTO sessions(id,user_id,csrf,expires_at) VALUES($1,$2,$3,now()+interval '7 days')",
-          [sessionDigest(token), rows[0].id, csrf],
+          "INSERT INTO sessions(id,user_id,csrf,expires_at,client) VALUES($1,$2,$3,now()+interval '7 days',$4)",
+          [sessionDigest(token), rows[0].id, csrf, client],
         );
         return rows[0];
       });
@@ -340,7 +444,7 @@ export async function createApp(c: Config) {
           ])
         ).rows[0]
       : null;
-    return { ...r, reviews, execution };
+    return { ...r, reviews, execution: await hydrate(c.storage, execution) };
   });
   app.patch("/api/records/:id", async (req: any) => {
     const v = codeInput
@@ -417,7 +521,7 @@ export async function createApp(c: Config) {
     );
     if (!rows[0])
       throw new DomainError(404, "NOT_FOUND", "실행 결과를 찾을 수 없어요.");
-    return rows[0];
+    return hydrate(c.storage, rows[0]);
   });
   app.get("/api/review-usage", async (req) => {
     const r = (
@@ -513,7 +617,12 @@ export async function createApp(c: Config) {
         [record.id],
       )
     ).rows;
-    const pdf = await renderPdf({ record, problem, execution, reviews });
+    const pdf = await renderPdf({
+      record,
+      problem,
+      execution: await hydrate(c.storage, execution),
+      reviews,
+    });
     return reply
       .type("application/pdf")
       .header(
@@ -608,7 +717,7 @@ export async function createApp(c: Config) {
       if (v.result) {
         const info = (
           await db.query(
-            "SELECT s.*,p.references_code,t.complexity FROM code_snapshots s JOIN records r ON r.id=s.record_id JOIN problems p ON p.id=r.problem_id JOIN topics t ON t.id=p.topic_id WHERE s.id=$1",
+            "SELECT s.*,p.references_code,p.complexity_time,p.complexity_space,t.complexity FROM code_snapshots s JOIN records r ON r.id=s.record_id JOIN problems p ON p.id=r.problem_id JOIN topics t ON t.id=p.topic_id WHERE s.id=$1",
             [e.snapshot_id],
           )
         ).rows[0];
@@ -622,6 +731,8 @@ export async function createApp(c: Config) {
           ),
         };
       }
+      if (c.storage && v.result)
+        result = await externalize(c.storage, e.id, result);
       await db.query(
         "UPDATE executions SET status=$2,result=$3,finished_at=now(),lease_token=NULL WHERE id=$1",
         [e.id, v.systemError ? "FAILED" : "SUCCEEDED", JSON.stringify(result)],

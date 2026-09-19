@@ -4,6 +4,9 @@ import { seed } from "./content.js";
 import { createApp } from "./app.js";
 import { cleanExpired } from "./domain.js";
 import { processReview, recoverReviews } from "./review-worker.js";
+import { GcsStorage } from "./object-storage.js";
+import { maintenance } from "./maintenance.js";
+import staticFiles from "@fastify/static";
 const production = process.env.NODE_ENV === "production";
 if (
   production &&
@@ -38,21 +41,28 @@ const app = await createApp({
   runnerToken: process.env.RUNNER_TOKEN ?? "",
   llmEnabled,
   production,
+  storage: process.env.TRACE_BUCKET
+    ? new GcsStorage(process.env.TRACE_BUCKET)
+    : undefined,
+  operationsToken: process.env.OPERATIONS_TOKEN,
 });
+if (process.env.WEB_DIST)
+  await app.register(staticFiles, {
+    root: resolve(process.env.WEB_DIST),
+    prefix: "/",
+  });
 let busy = false;
 const timer = setInterval(async () => {
   if (busy) return;
+  if (process.env.BACKGROUND_WORKER === "false") return;
   busy = true;
   try {
-    await cleanExpired(db);
-    await recoverReviews(db);
-    await db.query("DELETE FROM sessions WHERE expires_at<=now()");
-    if (llmEnabled)
-      await processReview(db, {
-        url: process.env.LLM_API_URL!,
-        key: process.env.LLM_API_KEY!,
-        model: process.env.LLM_MODEL!,
-      });
+    await maintenance(
+      db,
+      process.env.TRACE_BUCKET
+        ? new GcsStorage(process.env.TRACE_BUCKET)
+        : undefined,
+    );
   } catch (e) {
     app.log.error(e);
   } finally {

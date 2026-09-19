@@ -9,7 +9,25 @@ const esc = (s: any) =>
         c
       ]!,
   );
+let active = 0;
 export async function renderPdf({ record, problem, execution, reviews }: any) {
+  if (active >= 2)
+    throw new DomainError(
+      429,
+      "PDF_BUSY",
+      "다른 PDF를 생성하고 있어요. 잠시 후 다시 시도해 주세요.",
+    );
+  // Reject oversized exports explicitly; never silently omit saved code or reviews.
+  if (
+    Buffer.byteLength(JSON.stringify({ record, problem, execution, reviews })) >
+    16 * 1024 * 1024
+  )
+    throw new DomainError(
+      422,
+      "PDF_TOO_LARGE",
+      "이 기록은 PDF 생성 한도를 초과했어요. 기록은 유지되며 내용을 생략한 PDF는 생성하지 않습니다.",
+    );
+  active++;
   let browser;
   try {
     browser = await chromium.launch({
@@ -17,6 +35,7 @@ export async function renderPdf({ record, problem, execution, reviews }: any) {
       headless: true,
     });
   } catch {
+    active--;
     throw new DomainError(
       503,
       "PDF_UNAVAILABLE",
@@ -25,6 +44,7 @@ export async function renderPdf({ record, problem, execution, reviews }: any) {
   }
   try {
     const page = await browser.newPage();
+    page.setDefaultTimeout(60000);
     await page.route("**/*", (route) => route.abort());
     const result = execution?.result;
     await page.setContent(
@@ -58,6 +78,10 @@ export async function renderPdf({ record, problem, execution, reviews }: any) {
       margin: { top: "18mm", bottom: "18mm", left: "16mm", right: "16mm" },
     });
   } finally {
-    await browser.close();
+    try {
+      await browser.close();
+    } finally {
+      active--;
+    }
   }
 }

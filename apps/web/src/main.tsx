@@ -28,6 +28,7 @@ import { TraceViewer, LessonDiagram } from "./visualization.js";
 import "./style.css";
 const Editor = lazy(() => import("./CodeEditor.js"));
 const labels: any = { python: "Python 3.10", cpp: "C++20", java: "Java 21" };
+const nativeAndroid = !!window.AlgostepNative;
 function App() {
   const [config, setConfig] = useState<any>(null),
     [user, setUser] = useState<any>(null),
@@ -47,7 +48,7 @@ function App() {
         localStorage.getItem("theme") ??
         (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light"),
     ),
-    [mobile, setMobile] = useState(() => innerWidth < 850),
+    [mobile, setMobile] = useState(() => nativeAndroid || innerWidth < 850),
     [usage, setUsage] = useState<any>(null),
     [filter, setFilter] = useState(""),
     [answer, setAnswer] = useState<number | null>(null),
@@ -77,11 +78,16 @@ function App() {
     localStorage.setItem("theme", theme);
   }, [theme]);
   useEffect(() => {
-    const resize = () => setMobile(innerWidth < 850);
+    const resize = () => setMobile(nativeAndroid || innerWidth < 850);
     addEventListener("resize", resize);
     return () => removeEventListener("resize", resize);
   }, []);
   const loadData = async () => {
+    if (nativeAndroid) {
+      const a = await api("/topics");
+      setTopics(a.topics);
+      return;
+    }
     const [a, b, c, d] = await Promise.all([
       api("/topics"),
       api("/problems"),
@@ -115,6 +121,31 @@ function App() {
   }, []);
   useEffect(() => {
     if (user || !config?.googleClientId || loading) return;
+    if (nativeAndroid) {
+      window.AlgostepNative!.onmessage = async ({ data }) => {
+        try {
+          const value = JSON.parse(data);
+          if (value.error)
+            throw new ApiError("AUTH_UNAVAILABLE", value.error, 401);
+          const session = await post("/auth/google", {
+            credential: value.credential,
+            client: "android",
+          });
+          setCsrf(session.csrf);
+          setUser(session.user);
+          identityRef.current = session.user.id;
+          await loadData();
+          setError(null);
+          setBusy(false);
+        } catch (e) {
+          setBusy(false);
+          fail(e);
+        }
+      };
+      return () => {
+        window.AlgostepNative!.onmessage = undefined;
+      };
+    }
     void loadGoogle()
       .then(() => {
         window.google.accounts.id.initialize({
@@ -440,6 +471,11 @@ function App() {
             onClick={() => {
               void save()
                 .then(() => post("/auth/logout", {}))
+                .then(() =>
+                  window.AlgostepNative?.postMessage(
+                    JSON.stringify({ type: "logout" }),
+                  ),
+                )
                 .then(() => {
                   setUser(null);
                   setRecord(null);
@@ -565,6 +601,29 @@ function App() {
               </span>
             </div>
             <div ref={googleRef} />
+            {nativeAndroid && (
+              <button
+                disabled={busy || !config?.googleClientId}
+                onClick={async () => {
+                  try {
+                    setBusy(true);
+                    const { nonce } = await post("/auth/challenge", {});
+                    window.AlgostepNative!.postMessage(
+                      JSON.stringify({
+                        type: "login",
+                        nonce,
+                        clientId: config.googleClientId,
+                      }),
+                    );
+                  } catch (e) {
+                    setBusy(false);
+                    fail(e);
+                  }
+                }}
+              >
+                Google로 로그인
+              </button>
+            )}
             {!config?.googleClientId && (
               <p className="setup-note">
                 Google 로그인이 아직 연결되지 않았어요.
@@ -1065,6 +1124,13 @@ function App() {
                           </div>
                           <p className="caption">
                             {record.execution.result.analysis.evidence}
+                            {record.execution.result.analysis.findings?.map(
+                              (f: any, i: number) => (
+                                <span key={i} style={{ display: "block" }}>
+                                  {f.line}줄 · {f.message}
+                                </span>
+                              ),
+                            )}
                           </p>
                         </div>
                       )}

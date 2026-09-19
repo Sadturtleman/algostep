@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { ObjectGraph } from "./ObjectGraph.js";
 export function TraceViewer({
   trace,
   topic,
@@ -52,6 +53,7 @@ export function TraceViewer({
             {truncated && "· 수집 한도에 도달했어요"}
           </p>
           <Structure vars={vars} topic={topic} />
+          <ObjectGraph vars={vars} />
           <p className="caption">
             시각화는 같은 입력으로 별도 실행한 추적이에요. 난수·현재 시각에
             의존하는 코드는 채점 실행과 흐름이 다를 수 있어요.
@@ -112,6 +114,25 @@ export function TraceViewer({
   );
 }
 function Structure({ vars, topic }: { vars: any; topic: string }) {
+  const entries = Object.entries(vars);
+  const arrays = entries.filter(([, v]) => Array.isArray(v));
+  const adjacency = arrays.filter(
+    ([, v]: any) =>
+      v.length > 0 &&
+      v.every(
+        (r: any) =>
+          Array.isArray(r) &&
+          r.every((n: any) => Number.isInteger(n) && n >= 0 && n < v.length),
+      ),
+  );
+  const flat = arrays.filter(([, v]: any) =>
+    v.every((x: any) => typeof x === "number" || typeof x === "string"),
+  );
+  // Only choose an unambiguous shape; the topic supplies semantics, not a variable name.
+  if (["bfs", "dfs", "graph-list"].includes(topic) && adjacency.length === 1)
+    vars = { ...vars, graph: adjacency[0][1] };
+  if (flat.length === 1 && !vars.values && !vars.a)
+    vars = { ...vars, values: flat[0][1] };
   // Recognized names from the curated examples; arbitrary names remain in the variable view.
   vars = {
     ...vars,
@@ -123,7 +144,7 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
     current: vars.current ?? vars.v,
   };
   if (
-    topic === "bfs" &&
+    ["bfs", "dfs", "graph-list"].includes(topic) &&
     Array.isArray(vars.graph) &&
     vars.graph.every((v: any) => Array.isArray(v))
   ) {

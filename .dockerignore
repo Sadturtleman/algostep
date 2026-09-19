@@ -6,3 +6,7 @@ tmp
 test-results
 **/dist
 apps/runner/images
+apps/android
+.env.*
+*.jks
+*.keystore

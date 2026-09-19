@@ -1,21 +1,38 @@
 """Runs inside a disposable VM as an unprivileged user. Never import on the host."""
 import sys, json, runpy, collections
 steps = []
+seen = set()
 def safe(v, depth=0):
-    if depth > 3: return '[depth limit]'
+    if depth > 5: return '[depth limit]'
     if type(v) in (int, float, bool, str, type(None)):
         return v[:200] if type(v) is str else (str(v)[:100] if type(v) is int and v.bit_length()>300 else v)
-    if type(v) in (list, tuple, collections.deque): return [safe(x, depth+1) for x in list(v)[:30]]
-    if type(v) is dict: return {str(k)[:40]:safe(x,depth+1) for k,x in list(v.items())[:30] if type(k) in (str,int)}
+    identity = 'py@' + str(id(v))
+    if id(v) in seen: return {'$ref':identity}
+    seen.add(id(v))
+    if type(v) in (list, tuple, collections.deque):
+        result = [safe(x, depth+1) for x in list(v)[:30]]
+        seen.discard(id(v))
+        return result
+    if type(v) is dict:
+        result = {str(k)[:40]:safe(x,depth+1) for k,x in list(v.items())[:30] if type(k) in (str,int)}
+        seen.discard(id(v))
+        return result
+    # Read stored instance fields without calling user repr, properties or __getattribute__.
+    try:
+        fields = object.__getattribute__(v, '__dict__')
+        if type(fields) is dict and type(v).__module__ in ('__main__','<run_path>'):
+            return {'$id':identity, '$type':type(v).__name__, 'fields':{k:safe(x,depth+1) for k,x in list(fields.items())[:30] if type(k) is str}}
+    except (AttributeError,TypeError): pass
     return '['+type(v).__name__+']'
 def trace(frame,event,arg):
     if frame.f_code.co_filename=='/tmp/work/main.py' and event in ('line','return','exception') and len(steps)<2000:
+        seen.clear()
         stack=[]; parent=frame
         while parent and len(stack)<32:
             if parent.f_code.co_filename=='/tmp/work/main.py': stack.append(parent.f_code.co_name)
             parent=parent.f_back
         values={**frame.f_globals,**frame.f_locals}
-        steps.append({'line':frame.f_lineno,'event':event,'locals':{k:safe(v) for k,v in list(values.items()) if not k.startswith('__') and type(v) in (int,float,bool,str,list,tuple,dict,collections.deque,type(None))},'stack':stack})
+        steps.append({'line':frame.f_lineno,'event':event,'locals':{k:safe(v) for k,v in list(values.items())[:100] if not k.startswith('__') and (type(v) in (int,float,bool,str,list,tuple,dict,collections.deque,type(None)) or type(v).__module__ in ('__main__','<run_path>'))},'stack':stack})
     return trace
 try:
     sys.settrace(trace)

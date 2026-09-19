@@ -1,5 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import type { DB } from "./db.js";
+import { equivalent, staticFindings } from "./static-analysis.js";
 export const id = randomUUID;
 export const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -58,6 +59,16 @@ export async function releaseReview(db: DB, review: any, reason: string) {
   );
 }
 export async function deleteRecord(db: DB, record: string) {
+  for (const row of (
+    await db.query(
+      "SELECT result->'traceObject'->>'key' AS key FROM executions WHERE record_id=$1 AND result ? 'traceObject'",
+      [record],
+    )
+  ).rows)
+    await db.query(
+      "INSERT INTO object_deletions(object_key) VALUES($1) ON CONFLICT DO NOTHING",
+      [row.key],
+    );
   const pending = await db.query(
     "SELECT * FROM reviews WHERE record_id=$1 AND status IN ('QUEUED','RUNNING') FOR UPDATE",
     [record],
@@ -80,14 +91,18 @@ export function analysis(
   topic: any,
 ) {
   // A catalog proof is valid only for an exact, curated solution. No heuristic Big-O claims.
-  if (source === reference)
+  if (source === reference || equivalent(source, reference, language))
     return {
       status: "SUPPORTED",
-      method: "CURATED_REFERENCE_MATCH",
-      time: topic.complexity.split("|")[0],
-      space: topic.complexity.split("|")[1],
+      method:
+        source === reference
+          ? "CURATED_REFERENCE_MATCH"
+          : "LEXICAL_REFERENCE_MATCH",
+      time: topic.complexity_time ?? topic.complexity.split("|")[0],
+      space: topic.complexity_space ?? topic.complexity.split("|")[1],
       evidence:
-        "등록된 권장 코드와 정확히 일치하는 코드입니다. 입력 크기 기준이며 실행 측정치와 구분합니다.",
+        "등록된 권장 코드와 일치하거나 주석·공백만 달라요. 입력 크기 기준이며 실행 측정치와 구분합니다.",
+      findings: staticFindings(source, language),
       language,
     };
   return {
@@ -97,5 +112,6 @@ export function analysis(
     evidence:
       "이 코드의 점근적 복잡도를 자동으로 증명할 수 없어요. 테스트별 시간·메모리 측정치는 확인할 수 있어요.",
     language,
+    findings: staticFindings(source, language),
   };
 }

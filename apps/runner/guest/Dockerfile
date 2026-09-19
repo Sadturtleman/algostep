@@ -5,5 +5,8 @@ COPY agent.py /agent.py
 COPY trace.py /trace.py
 COPY gdb_trace.py /gdb_trace.py
 COPY JdiTrace.java /opt/tracer/JdiTrace.java
+COPY SingleThreadMain.java /opt/policy/SingleThreadMain.java
+COPY single-thread.c /single-thread.c
+RUN gcc -O2 /single-thread.c -o /single-thread && javac /opt/policy/SingleThreadMain.java
 RUN javac --add-modules jdk.jdi /opt/tracer/JdiTrace.java
 RUN chmod 755 /init && mkdir -p /tmp/work /sys/fs/cgroup

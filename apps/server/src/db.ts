@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import { schema } from "./schema.js";
+import { migrate } from "./migrations.js";
 export interface DB {
   query(sql: string, args?: any[]): Promise<{ rows: Record<string, any>[] }>;
   tx<T>(fn: (db: DB) => Promise<T>): Promise<T>;
@@ -29,15 +29,16 @@ export async function database(url?: string, path?: string): Promise<DB> {
     });
     const db = wrap(pool);
     db.close = () => pool.end();
-    await pool.query(schema);
+    await migrate(db);
     return db;
   }
   const lite = new PGlite(path);
-  await lite.exec(schema);
   const wrap = (c: any): DB => ({
     query: async (sql, args) => c.query(sql, args),
     tx: (fn) => lite.transaction((t) => fn(wrap(t))),
     close: () => lite.close(),
   });
-  return wrap(lite);
+  const db = wrap(lite);
+  await migrate(db);
+  return db;
 }

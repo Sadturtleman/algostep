@@ -46,8 +46,18 @@ def execute(job):
         cmd=['g++','-std=c++20','-O0','-g','main.cpp','-o','main'] if lang=='cpp' else ['javac','-g','-J-Xmx256m','Main.java']
         status,out,err,ms,peak=run(cmd,'',limit['compileMs']/1000,limit['outputBytes'],memory,compiling=True)
         if status!='OK':return {'verdict':'CE','diagnostics':err or status,'tests':[],'traceSupport':'UNSUPPORTED','runnerImage':IMAGE}
-    command={'python':['python3.10','main.py'],'cpp':['./main'],'java':['java','-Xmx256m','-XX:MaxMetaspaceSize=128m','-XX:ReservedCodeCacheSize=32m','-XX:+UseSerialGC','-XX:ActiveProcessorCount=1','Main']}[lang]
+    artifacts=pathlib.Path('/tmp/trusted-artifacts');artifacts.mkdir(mode=0o700,exist_ok=True)
+    for entry in WORK.iterdir():
+        if entry.is_file() and not entry.is_symlink() and (entry.name==name or (lang=='cpp' and entry.name=='main') or (lang=='java' and entry.suffix=='.class')):shutil.copyfile(entry,artifacts/entry.name)
+    def restore():
+        # A submitted program may replace any path in its writable directory.
+        # Remove the whole directory before trusted supervisor I/O, including symlinks.
+        shutil.rmtree(WORK);WORK.mkdir();os.chown(WORK,65534,65534)
+        for entry in artifacts.iterdir():
+            target=WORK/entry.name;shutil.copyfile(entry,target);target.chmod(0o755 if entry.name=='main' else 0o644)
+    command={'python':['/single-thread','python3.10','main.py'],'cpp':['/single-thread','./main'],'java':['java','-Djava.security.manager=allow','-cp','/opt/policy:/tmp/work','-Xmx256m','-XX:MaxMetaspaceSize=128m','-XX:ReservedCodeCacheSize=32m','-XX:+UseSerialGC','-XX:ActiveProcessorCount=1','SingleThreadMain']}[lang]
     for case in job['tests']:
+        restore()
         # Remove mutable user files between tests; preserve only submitted source and compiled artifacts.
         for entry in WORK.iterdir():
             if entry.name==name or (lang=='cpp' and entry.name=='main') or (lang=='java' and entry.suffix=='.class'):continue
@@ -57,7 +67,8 @@ def execute(job):
         expected=case['expected'];verdict=status if status!='OK' else 'COMPLETED' if expected is None else 'AC' if (WORK/'stdout').read_bytes()==expected.encode('utf-8') else 'WA'
         trace=[]
         if status in ('OK','RE'):
-            debug={'python':['python3.10','/trace.py'],'cpp':['gdb','-q','-batch','-x','/gdb_trace.py','./main'],'java':['java','-Xmx128m','-XX:+UseSerialGC','--add-modules','jdk.jdi','-cp','/opt/tracer','JdiTrace']}[lang]
+            restore()
+            debug={'python':['/single-thread','python3.10','/trace.py'],'cpp':['gdb','-q','-batch','-x','/gdb_trace.py','./main'],'java':['java','-Xmx128m','-XX:+UseSerialGC','--add-modules','jdk.jdi','-cp','/opt/tracer','JdiTrace']}[lang]
             # Separate tracing run; never use debugger timing or output for judging.
             run(debug,case['input'],limit['testMs']/1000,limit['outputBytes'],memory)
             try:
