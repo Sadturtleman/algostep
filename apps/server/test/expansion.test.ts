@@ -28,7 +28,7 @@ test("migration is repeatable and preserves saved data", async () => {
     assert.equal(
       (await db.query("SELECT max(version) AS n FROM schema_migrations"))
         .rows[0].n,
-      2,
+      3,
     );
   } finally {
     await db.close();

@@ -37,7 +37,7 @@
 ## 외부 설정이 필요한 항목
 
 - Google OAuth 클라이언트/허용 출처, Drive API 활성화 및 동의 화면.
-- LLM 엔드포인트·API 키·모델(현재 OpenAI 호환 chat-completions JSON 인터페이스).
+- Gemini Developer API 키(기본 gemini-3.8-flash). 네이티브 구조화 응답·토큰 원장을 구현했으며 실제 키/과금 계정 연결이 필요하다. 명시적 설정으로 기존 OpenAI 호환 인터페이스도 지원한다.
 - KVM 호스트, Firecracker/jailer, 검증된 커널·rootfs, 이미지 업데이트/서명 정책.
 - 도메인·TLS·클라우드 계정. 이 저장소 생성으로 서비스가 인터넷에 배포되는 것은 아니다.
 

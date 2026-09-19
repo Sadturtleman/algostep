@@ -33,3 +33,5 @@ maintenance에 한해 Google OIDC도 허용한다. `SCHEDULER_AUDIENCE`와 `SCHE
 `TRACE_BUCKET`이 있으면 추적은 gzip 및 SHA-256으로 GCS에 저장하고 DB에는 비공개 객체 참조를 남긴다. 읽기는 기록 소유권 확인 후 서버가 수행하며 공개 URL을 반환하지 않는다. ADC/Workload Identity를 사용하고 JSON 서비스 계정 키를 VM 게스트에 넣지 않는다. 버킷은 public access prevention, uniform access, 버전 관리/soft delete 비활성, 30일 lifecycle 삭제를 설정한다. 즉시 삭제는 DB outbox → maintenance로 재시도한다. 이미 삭제된 객체의 재삭제도 성공으로 처리한다. 실패한 업로드의 고아 객체는 lifecycle로 제거한다.
 
 PDF는 코드·리뷰·입출력을 조용히 생략하지 않는다. 실행 시각화는 테스트별 처음/중간/마지막 표본이다. 입력 데이터 16MiB 초과는 명시적으로 실패하고 기록을 유지한다. 인스턴스당 동시 PDF 2개, 대기 대신 재시도 응답을 반환한다. 이 한도는 부하 시험 시작값이다. 매우 큰 기록을 모두 PDF로 내보내는 비동기 분할/병합 작업은 별도 확장이 필요하다.
+
+리뷰 공급자 사용량은 metrics의 `reviewApiUsage30Days`로 제공한다. 입력/출력/추론 토큰이 보고되지 않은 응답은 null이며, 0 토큰으로 해석하지 않는다. 이 원장은 공급자가 보고한 토큰이며 청구서나 실제 Cloud Run/VM 사용량을 대신하지 않는다. 비용은 `docs/billing-actuals.sql`과 Billing export로 별도 대조한다.

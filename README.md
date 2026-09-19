@@ -56,6 +56,8 @@ GitHub Actions는 별도 PostgreSQL 17에서도 검사하고 브라우저 스크
 - [실제 검사 결과 및 CI 증거](docs/verification.md)
 - [Android 빌드와 OAuth](docs/android.md)
 - [저비용 GCP 구성 검토](docs/gcp-cost-plan.md)
+- [Gemini 연결 및 배포 상태](docs/gemini-deployment.md)
+- [월 비용 표·그래프 계산기](docs/cost-report.html)
 - [마이그레이션·백업·콘텐츠 관리·관측](docs/operations.md)
 
 Monaco는 npm의 workspace 링크 경계 override 문제를 피하기 위해 루트 의존성에 둡니다. DOMPurify 보안 수정 버전을 루트 override로 적용하며 `npm audit`로 확인합니다.

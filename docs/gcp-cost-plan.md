@@ -31,3 +31,5 @@
 - https://cloud.google.com/sql/pricing
 
 이 문서는 배포 설계이며 클라우드 리소스 생성·요금 발생·도메인 연결을 수행하지 않는다.
+
+Gemini 기본 설정은 `GEMINI_API_KEY`와 `GEMINI_MODEL`을 사용한다. 과거의 LLM 세 변수는 `LLM_PROVIDER=openai`를 명시할 때만 적용한다. 월 사용량별 표/그래프는 [비용 계산기](cost-report.html), 진행 상태는 [Gemini 배포 문서](gemini-deployment.md)에 있다. 계산기의 Iowa 단가를 이 문서의 서울 배포 견적으로 사용하지 않는다.

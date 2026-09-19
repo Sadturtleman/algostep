@@ -228,6 +228,9 @@ export async function createApp(c: Config) {
   });
   const user = (req: any) => req.user.id as string;
   app.get("/api/operations/metrics", async () => ({
+    reviewApiUsage30Days: (
+      await c.db.query("SELECT provider,model,count(*)::int AS responses,count(input_tokens)::int AS measured_responses,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(thinking_tokens) AS thinking_tokens FROM review_api_usage WHERE created_at>=now()-interval '30 days' GROUP BY provider,model")
+    ).rows,
     executions: (
       await c.db.query(
         "SELECT status,count(*)::int AS count,min(created_at) AS oldest FROM executions GROUP BY status",

@@ -30,13 +30,16 @@ async function post(path: string, body: any) {
   return r.json() as Promise<any>;
 }
 async function slot() {
+  let idleDelay = 1500;
   while (!stopping) {
     try {
       const { job } = await post("claim", {});
       if (!job) {
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, idleDelay));
+        idleDelay = Math.min(idleDelay * 2, 15000);
         continue;
       }
+      idleDelay = 1500;
       validateJob(job);
       const controller = new AbortController();
       let lastLease = Date.now();

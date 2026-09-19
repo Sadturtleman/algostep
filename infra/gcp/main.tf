@@ -48,7 +48,7 @@ variable "google_client_id" {
 
 variable "secret_ids" {
 
-  description = "Existing Secret Manager secret names keyed by DATABASE_URL, SESSION_SECRET, RUNNER_TOKEN, OPERATIONS_TOKEN; optionally LLM_API_URL, LLM_API_KEY, LLM_MODEL. Never pass secret values."
+  description = "Existing Secret Manager secret names keyed by DATABASE_URL, SESSION_SECRET, RUNNER_TOKEN, OPERATIONS_TOKEN; optionally GEMINI_API_KEY. Never pass secret values."
   type        = map(string)
   validation {
     condition     = alltrue([for k in ["DATABASE_URL", "SESSION_SECRET", "RUNNER_TOKEN", "OPERATIONS_TOKEN"] : contains(keys(var.secret_ids), k)])
@@ -148,7 +148,7 @@ resource "google_cloud_run_v2_service" "api" {
 
       dynamic "env" {
         for_each = merge({
-          WEB_ORIGIN = var.web_origin, GOOGLE_CLIENT_ID = var.google_client_id, TRACE_BUCKET = google_storage_bucket.traces.name, BACKGROUND_WORKER = "false", SCHEDULER_AUDIENCE = var.web_origin, SCHEDULER_EMAIL = google_service_account.scheduler.email
+          WEB_ORIGIN = var.web_origin, GOOGLE_CLIENT_ID = var.google_client_id, TRACE_BUCKET = google_storage_bucket.traces.name, BACKGROUND_WORKER = "false", SCHEDULER_AUDIENCE = var.web_origin, SCHEDULER_EMAIL = google_service_account.scheduler.email, LLM_PROVIDER = "gemini", GEMINI_MODEL = "gemini-3.8-flash"
           }
         )
         content {
@@ -223,4 +223,3 @@ resource "google_cloud_scheduler_job" "maintenance" {
 output "service_url" {
   value = google_cloud_run_v2_service.api.uri
 }
-

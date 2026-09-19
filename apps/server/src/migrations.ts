@@ -18,6 +18,11 @@ const migrations = [
     CREATE TABLE object_deletions(object_key text PRIMARY KEY,created_at timestamptz NOT NULL DEFAULT now());
   `,
   },
+  {
+    version: 3,
+    sql: `CREATE TABLE review_api_usage(id uuid PRIMARY KEY, provider text NOT NULL, model text NOT NULL, input_tokens bigint, output_tokens bigint, thinking_tokens bigint, created_at timestamptz NOT NULL DEFAULT now());
+  CREATE INDEX review_api_usage_created ON review_api_usage(created_at);`,
+  },
 ];
 
 export async function migrate(db: DB) {

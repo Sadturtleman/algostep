@@ -193,31 +193,42 @@ test("LLM payload has only the three approved inputs; success consumes and delet
   });
   let payload: any;
   await processReview(db, {
-    url: "https://llm.example.test",
+    provider: "gemini",
+    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
     key: "test",
     model: "test",
     fetcher: (async (_url, options) => {
       payload = JSON.parse(String(options?.body));
       return new Response(
         JSON.stringify({
-          choices: [
+          candidates: [
             {
-              message: {
-                content: JSON.stringify({
-                  logicalErrors: "오류 설명",
-                  efficiencyImprovements: "개선 설명",
-                  alternativeCode: "print(4)",
-                }),
+              finishReason: "STOP",
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      logicalErrors: "오류 설명",
+                      efficiencyImprovements: "개선 설명",
+                      alternativeCode: "print(4)",
+                    }),
+                  },
+                ],
               },
             },
           ],
+          usageMetadata: {
+            promptTokenCount: 4000,
+            candidatesTokenCount: 1500,
+            thoughtsTokenCount: 500,
+          },
         }),
         { status: 200 },
       );
     }) as typeof fetch,
   });
   assert.deepEqual(
-    Object.keys(JSON.parse(payload.messages[1].content)).sort(),
+    Object.keys(JSON.parse(payload.contents[0].parts[0].text)).sort(),
     ["problem", "recommendedCode", "userCode"],
   );
   assert.equal(
@@ -229,6 +240,13 @@ test("LLM payload has only the three approved inputs; success consumes and delet
     (await request(u, "GET", "/api/review-usage")).json().consumed,
     1,
   );
+  const tokens = (
+    await db.query(
+      "SELECT input_tokens,output_tokens,thinking_tokens FROM review_api_usage WHERE provider='gemini'",
+    )
+  ).rows;
+  assert.equal(tokens.length, 1);
+  assert.equal(Number(tokens[0].input_tokens), 4000);
   const events = (
     await db.query(
       "SELECT * FROM review_credit_events WHERE allowance_id IN (SELECT id FROM review_allowances WHERE user_id=$1) AND type='CONSUME'",

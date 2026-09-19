@@ -1,3 +1,4 @@
+import { llmOptions } from "./llm.js";
 import { resolve } from "node:path";
 import { database } from "./db.js";
 import { seed } from "./content.js";
@@ -29,11 +30,7 @@ const db = await database(
 await seed(db);
 await recoverReviews(db);
 await cleanExpired(db);
-const llmEnabled = !!(
-  process.env.LLM_API_URL &&
-  process.env.LLM_API_KEY &&
-  process.env.LLM_MODEL
-);
+const llmEnabled = !!llmOptions();
 const app = await createApp({
   db,
   origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
