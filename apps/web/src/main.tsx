@@ -1,4 +1,8 @@
 import { QuizPanel } from "./QuizPanel.js";
+import {
+  groupLearningTopics,
+  learningCategory,
+} from "./learning-categories.js";
 import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -39,6 +43,7 @@ function App() {
     [problems, setProblems] = useState<any[]>([]),
     [records, setRecords] = useState<any[]>([]),
     [topic, setTopic] = useState<any>(null),
+    [practiceId, setPracticeId] = useState<string | null>(null),
     [record, setRecord] = useState<any>(null),
     [source, setSource] = useState(""),
     [language, setLanguage] = useState("python"),
@@ -671,6 +676,33 @@ function App() {
     mobile && ["workspace", "problems", "history"].includes(page)
       ? "home"
       : page;
+  const groups = groupLearningTopics(topics, filter);
+  const relatedProblems = topic
+    ? problems.filter(
+        (p) => p.topic_id === topic.id && (!practiceId || p.id === practiceId),
+      )
+    : [];
+  const openLesson = (
+    nextTopic: any,
+    selectedProblem: string | null = null,
+  ) => {
+    setTopic(nextTopic);
+    setPracticeId(selectedProblem);
+    setPage("lesson");
+    window.scrollTo(0, 0);
+  };
+  const startPractice = async (problemId: string) => {
+    setBusy(true);
+    try {
+      const r = await post("/records", { problemId, language: "python" });
+      await openRecord(r.id);
+      window.scrollTo(0, 0);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <>
       {header}
@@ -699,8 +731,7 @@ function App() {
                 <button
                   onClick={() => {
                     const t = topics.find((t) => t.id === "binary-search");
-                    setTopic(t);
-                    setPage("lesson");
+                    openLesson(t);
                   }}
                 >
                   이진 탐색부터 시작하기 <ArrowRight size={18} />
@@ -736,62 +767,143 @@ function App() {
                 />
               </label>
             </div>
-            <div className="topic-grid">
-              {topics
-                .filter((t) => (t.title + t.category).includes(filter))
-                .map((t) => (
-                  <button
-                    className="topic-card"
-                    key={t.id}
-                    onClick={() => {
-                      setTopic(t);
-                      setPage("lesson");
-                    }}
-                  >
-                    <div className="section-heading">
-                      <span className="topic-symbol">
-                        {t.category === "그래프" ? <GitBranch /> : <BookOpen />}
+            <nav className="category-nav" aria-label="학습 종류">
+              {groups.map((group, i) => (
+                <a key={group.name} href={`#learning-category-${i}`}>
+                  {group.name} <span>{group.topics.length}</span>
+                </a>
+              ))}
+            </nav>
+            {groups.length === 0 && (
+              <p role="status" className="panel">
+                검색 결과가 없어요. 다른 개념이나 종류를 검색해 보세요.
+              </p>
+            )}
+            {groups.map((group, i) => (
+              <section
+                className="topic-section"
+                key={group.name}
+                id={`learning-category-${i}`}
+                aria-label={`${group.name} 학습`}
+              >
+                <div className="section-heading">
+                  <h3>{group.name}</h3>
+                  <span className="muted">{group.topics.length}개 개념</span>
+                </div>
+                <div className="topic-grid">
+                  {group.topics.map((t) => (
+                    <button
+                      className="topic-card"
+                      key={t.id}
+                      onClick={() => {
+                        openLesson(t);
+                      }}
+                    >
+                      <div className="section-heading">
+                        <span className="topic-symbol">
+                          {t.category === "그래프" ? (
+                            <GitBranch />
+                          ) : (
+                            <BookOpen />
+                          )}
+                        </span>
+                        <span className="badge">{group.name}</span>
+                      </div>
+                      <h4>{t.title}</h4>
+                      <p>{t.body.split(". ")[0]}.</p>
+                      <span className="card-link">
+                        개념과 예제 살펴보기 <ArrowRight size={16} />
                       </span>
-                      <span className="badge">
-                        {t.priority} · {t.category}
-                      </span>
-                    </div>
-                    <h3>{t.title}</h3>
-                    <p>{t.body.split(". ")[0]}.</p>
-                    <span className="card-link">
-                      개념과 퀴즈 보기 <ArrowRight size={16} />
-                    </span>
-                  </button>
-                ))}
-            </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
           </>
         )}
         {actualPage === "lesson" && topic && (
           <>
-            <button className="text-button" onClick={() => setPage("home")}>
-              <ArrowLeft size={16} /> 학습 목록
+            <button
+              className="text-button"
+              onClick={() => {
+                setPage(practiceId && !mobile ? "problems" : "home");
+                window.scrollTo(0, 0);
+              }}
+            >
+              <ArrowLeft size={16} />{" "}
+              {practiceId && !mobile ? "문제 목록" : "학습 목록"}
             </button>
             <div className="page-heading">
-              <span className="badge">
-                {topic.priority} · {topic.category}
-              </span>
+              <span className="badge">{learningCategory(topic)}</span>
               <h1>{topic.title}</h1>
-              <p>개념을 살펴본 뒤 퀴즈로 이해를 확인하세요.</p>
+              <p>
+                {mobile
+                  ? "기본 개념과 예제 동작을 함께 살펴보고, 퀴즈로 이해를 확인하세요."
+                  : "기본 개념과 예제 동작을 함께 살펴보고, 이해했다면 문제에 적용해 보세요."}
+              </p>
             </div>
             <div className="lesson-layout">
-              <div>
-                <article className="panel prose">
-                  <h2>핵심 개념</h2>
-                  {topic.body.split(". ").map((s: string, i: number) => (
-                    <p key={i}>
-                      {s}
-                      {s.endsWith(".") ? "" : "."}
-                    </p>
-                  ))}
-                </article>
+              <article className="panel prose">
+                <span className="eyebrow">01 · 이해하기</span>
+                <h2>기본 개념</h2>
+                {topic.body.split(". ").map((s: string, i: number) => (
+                  <p key={i}>
+                    {s}
+                    {s.endsWith(".") ? "" : "."}
+                  </p>
+                ))}
+              </article>
+              <div className="lesson-example-column">
                 <LessonDiagram topic={topic.id} />
               </div>
+            </div>
+            <div className="lesson-followup">
               <QuizPanel key={topic.id} topic={topic} onError={fail} />
+              {!mobile && (
+                <section
+                  className="panel practice-next"
+                  aria-label="개념에서 문제로"
+                >
+                  <span className="eyebrow">02 · 적용하기</span>
+                  <h2>이해했다면, 직접 풀어볼까요?</h2>
+                  <p>
+                    퀴즈로 이해를 확인하거나, 준비됐다면 바로 코드를 작성해
+                    보세요.
+                  </p>
+                  {relatedProblems.map((p) => (
+                    <article className="practice-choice" key={p.id}>
+                      <h3>{p.title}</h3>
+                      <p>{p.statement}</p>
+                      <small>
+                        공개 테스트 {p.tests.length}개 · Python / C++ / Java
+                      </small>
+                      <button
+                        disabled={busy}
+                        onClick={() => void startPractice(p.id)}
+                      >
+                        이해했어요. 문제 풀기 <ArrowRight size={18} />
+                      </button>
+                    </article>
+                  ))}
+                  {relatedProblems.length === 0 && (
+                    <>
+                      <p>
+                        이 개념의 코드 작성 문제는 아직 준비 중이에요. 예제와
+                        퀴즈로 학습하거나 다른 문제를 살펴볼 수 있어요.
+                      </p>
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setPage("problems");
+                          window.scrollTo(0, 0);
+                        }}
+                      >
+                        다른 문제 살펴보기 <ArrowRight size={18} />
+                      </button>
+                    </>
+                  )}
+                </section>
+              )}
             </div>
           </>
         )}
@@ -801,8 +913,8 @@ function App() {
               <span className="eyebrow">CODE & EXPLORE</span>
               <h1>이제, 코드로 확인해요.</h1>
               <p>
-                공개 테스트와 시각화로 풀이 과정을 이해하세요. 실행과 기본
-                분석은 무료예요.
+                문제를 고르면 기본 개념과 예제 동작부터 살펴볼 수 있어요. 이해한
+                뒤 코드 작성으로 이어집니다.
               </p>
             </div>
             <div className="problem-list">
@@ -810,7 +922,7 @@ function App() {
                 <article className="panel problem-row" key={p.id}>
                   <div>
                     <span className="badge">
-                      P0 · {topics.find((t) => t.id === p.topic_id)?.title}
+                      {topics.find((t) => t.id === p.topic_id)?.title}
                     </span>
                     <h2>{p.title}</h2>
                     <p>{p.statement}</p>
@@ -820,22 +932,14 @@ function App() {
                   </div>
                   <button
                     disabled={busy}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        const r = await post("/records", {
-                          problemId: p.id,
-                          language: "python",
-                        });
-                        await openRecord(r.id);
-                      } catch (e) {
-                        fail(e);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
+                    onClick={() =>
+                      openLesson(
+                        topics.find((t) => t.id === p.topic_id),
+                        p.id,
+                      )
+                    }
                   >
-                    문제 풀기 <ArrowRight size={18} />
+                    개념과 예제 보기 <ArrowRight size={18} />
                   </button>
                 </article>
               ))}

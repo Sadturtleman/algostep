@@ -172,10 +172,33 @@ test("workspace autosaves and queues a real request without fabricated execution
   await authenticate(page);
   await page.goto("/");
   await page.getByRole("button", { name: "문제 풀기", exact: true }).click();
+  const before = (await (await page.request.get("/api/records")).json()).records
+    .length;
   await page
     .getByRole("article")
     .filter({ hasText: "정렬된 배열에서 값 찾기" })
-    .getByRole("button", { name: "문제 풀기" })
+    .getByRole("button", { name: "개념과 예제 보기" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "기본 개념", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "개념을 한 단계씩", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("main.py", { exact: true })).toHaveCount(0);
+  expect(
+    (await (await page.request.get("/api/records")).json()).records.length,
+  ).toBe(before);
+  const concept = await page.locator(".lesson-layout .prose").boundingBox(),
+    example = await page.locator(".lesson-example-column").boundingBox();
+  expect(concept!.x + concept!.width).toBeLessThan(example!.x);
+  expect(Math.abs(concept!.y - example!.y)).toBeLessThan(2);
+  await page.screenshot({
+    path: "test-results/learning-before-coding.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "이해했어요. 문제 풀기", exact: true })
     .click();
   await expect(page.getByText("main.py", { exact: true })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
@@ -200,6 +223,59 @@ test("workspace autosaves and queues a real request without fabricated execution
   await expect(
     page.getByRole("heading", { name: "정렬된 배열에서 값 찾기" }),
   ).toBeVisible();
+});
+
+test("home groups all topics by type without priority labels and supports search", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/");
+  await expect(page.locator(".topic-card")).toHaveCount(47);
+  await expect(
+    page.getByRole("navigation", { name: "학습 종류" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "트리 학습" })
+      .getByRole("heading", { name: "이진 탐색 트리", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "정렬 학습" }).locator(".topic-card"),
+  ).toHaveCount(6);
+  expect(await page.locator("main").innerText()).not.toMatch(/\bP[012]\b/);
+  await page.screenshot({
+    path: "test-results/grouped-home.png",
+    fullPage: true,
+  });
+  await page.getByLabel("개념 검색").fill("동적 계획법");
+  await expect(page.locator(".topic-section")).toHaveCount(1);
+  await expect(page.locator(".topic-card")).toHaveCount(4);
+  await page.getByLabel("개념 검색").fill("없는개념xyz");
+  await expect(page.getByRole("status")).toContainText("검색 결과가 없어요");
+  await page.getByLabel("개념 검색").fill("FFT");
+  await page.locator(".topic-card").click();
+  await expect(
+    page.getByRole("button", { name: "다른 문제 살펴보기" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "이해했어요. 문제 풀기" }),
+  ).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("region", { name: "개념에서 문제로" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  const concept = await page.locator(".lesson-layout .prose").boundingBox(),
+    example = await page.locator(".lesson-example-column").boundingBox();
+  expect(example!.y).toBeGreaterThan(concept!.y + concept!.height);
+  await page.screenshot({
+    path: "test-results/learning-mobile-flow.png",
+    fullPage: true,
+  });
 });
 test("mobile offers lessons and quizzes, not coding navigation", async ({
   page,
