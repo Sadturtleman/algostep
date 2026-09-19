@@ -4,7 +4,7 @@
 
 현재 앱의 36종 비즈니스 이벤트를 공통 원장에 저장한다. 서버 작업은 상태 변경과 같은 트랜잭션에서 `business_events`와 `analytics_deliveries`에 기록한다. UI 상호작용은 인증·CSRF가 적용된 `POST /api/analytics/events`를 통해 같은 원장으로 들어간다. GA4는 이 원장에서 Measurement Protocol로 전송하고 Amplitude는 별도 큐에서 HTTP V2 API로 전송한다.
 
-**외부 활성화에 필요한 값:** GA4 웹 측정 ID, Measurement Protocol API Secret, Amplitude 프로젝트 수집 키와 리전. 설정 전에도 DB 수집은 동작하며 관리자 → 비즈니스 로그에 `연결 설정 대기`로 표시한다. 연결 설정 완료와 외부 보고서 수신 검증은 다르다. 이 문서나 코드의 존재만으로 외부 연결 완료를 뜻하지 않는다.
+**배포 설정:** GA4 웹 측정 ID, Measurement Protocol API Secret, Amplitude 프로젝트 수집 키와 리전. 설정 전에도 DB 수집은 동작하며 관리자 → 비즈니스 로그에 `연결 설정 대기`로 표시한다. 연결 설정 완료와 외부 보고서 수신 검증은 다르다. 이 문서나 코드의 존재만으로 외부 연결 완료를 뜻하지 않는다.
 
 ## 이벤트 목록
 
@@ -33,7 +33,7 @@ GA4 이름은 아래 코드에 소문자 `as_` 접두어를 붙인다. 예: `EXE
 - 기존 1분 유지보수 스케줄에서 GA4 큐를 처리한다. 사용자/브라우저 컨텍스트별 최대 25건, 호출당 최대 250건 또는 20초 예산이다. 이벤트별 실제 발생 시각을 유지한다. 대량 이용 시 PENDING 추이와 처리 지연을 보고 처리량을 조정한다.
 - 전송 전 `/debug/mp/collect` 검증 후 `/mp/collect`로 보낸다. 검증 단계의 네트워크 장애는 최대 5회 재시도한다. 2xx는 `ACCEPTED`(HTTP 수신)이며 GA4 보고서 반영을 증명하지 않는다. 실제 수신 여부가 불명확한 요청/임대 만료는 `UNCERTAIN`으로 격리하고 자동 재전송하지 않는다. 검증 실패는 `REJECTED`, 72시간이 지난 미전송 이벤트는 `EXPIRED`다. 만료되어도 원장은 남는다.
 - GA4는 일반 이벤트 ID의 exactly-once 처리를 보장하지 않는다. 정확한 운영 집계는 DB 원장을 기준으로 한다. 활성화 전 72시간 이상 지난 데이터는 DB 원장에서 분석하며 시간을 조작해 GA4에 넣지 않는다.
-- 브라우저 GA 태그의 client_id/session_id와 임의 생성한 analytics 사용자 UUID만 전달한다. 태그 차단·Android WebView 등 컨텍스트가 없으면 `server_unattributed`로 구분한다. 이를 정상 웹 세션·체류 시간 지표로 해석하지 않는다. engagement_time을 임의 생성하지 않는다.
+- 브라우저 GA 태그의 client_id/session_id와 임의 생성한 analytics 사용자 UUID만 전달한다. 브라우저 정보가 없는 이벤트의 client_id는 analytics UUID를 해시한 숫자.숫자 형식이며 실제 세션을 생성하거나 추정하지 않는다. 태그 차단·Android WebView 등 컨텍스트가 없으면 `server_unattributed`로 구분한다. 이를 정상 웹 세션·체류 시간 지표로 해석하지 않는다. engagement_time을 임의 생성하지 않는다.
 - Google 태그 자체의 page_view/first_visit/session_start 등 자동 이벤트는 GA4의 웹 계측이며 36종 앱 이벤트 원장과 별도다. 앱 이벤트를 Google 태그와 서버 양쪽에서 중복 전송하지 않는다.
 
 ## GA4 활성화
@@ -66,3 +66,11 @@ GA4와 같은 원장에서 HTTP V2 API로 전송한다. 별도 분석 서버나 
 - 현재 원장/전송 상태는 별도 자동 삭제 정책 없이 보관한다. Supabase 용량은 지속 관찰하고 보관 기간을 결정한 후 원장 아카이브/삭제를 적용해야 한다. 학습 기록 30일 보관 정책을 비즈니스 원장에 자동 적용하지 않는다.
 
 참고: [GA4 전송 및 제한](https://developers.google.com/analytics/devguides/collection/protocol/ga4/sending-events), [GA4 검증](https://developers.google.com/analytics/devguides/collection/protocol/ga4/validating-events), [Amplitude HTTP V2](https://www.amplitude.com/docs/apis/analytics/http-v2).
+
+
+## 연결된 운영 대상
+
+- GA4: Algostep, 속성 `555063494`, 웹 스트림 `15808193214`, 측정 ID `G-JR60WCNBT4`. 향상된 측정은 꺼져 있다.
+- Amplitude: Algostep 프로젝트 `865456`, 미국 데이터 리전, Asia/Seoul, 주 시작 월요일, KRW. 서버 수집용 `algostep-server` API 키만 사용한다.
+- 두 키는 Secret Manager에 저장되며 `algostep-api` 서비스 계정에 각 Secret의 읽기 권한만 부여했다. 키 값은 Git 또는 클라이언트에 포함하지 않는다.
+- 2026-09-20: 사용자 승인 후 GA4 수집 확인을 완료했다. GA4 실시간 보고서와 Amplitude 라이브 이벤트에서 `as_screen_viewed`, `as_admin_section_viewed` 수신을 확인했다.

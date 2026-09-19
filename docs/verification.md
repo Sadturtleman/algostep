@@ -115,3 +115,12 @@ GitHub 업로드와 CI 통과를 운영 출시로 간주하지 않는다. 최신
 - Redash 설치·DB 계정 생성 경로를 제거하고 Amplitude HTTP V2 전송 큐와 마이그레이션 7을 추가했다. 기존 마이그레이션 6과 SQL 조회 뷰는 유지한다.
 - 타입 검사와 전체 회귀 테스트 54건 통과, 외부 PostgreSQL 환경 전용 1건은 로컬에서 건너뛰었다. Amplitude 배치 제한·재시도 payload 유지·원장 중복 방지·롤백·리전·재시도 종료를 검증했다.
 - GA4 Algostep 계정/속성과 웹 스트림 생성: 측정 ID G-JR60WCNBT4. 사용자 데이터 수집 확인 및 GA4·Amplitude 키 생성/저장 승인은 대기 중이다. 실제 공급자 수집이나 배포 완료로 표시하지 않는다.
+
+
+## GA4 · Amplitude 운영 연결 완료 (2026-09-20)
+
+- 사용자 승인 후 GA4 데이터 수집 확인과 서버 API Secret 생성, Amplitude Algostep 프로젝트(865456)의 서버 수집 API 키 생성을 완료했다. 두 키는 GCP Secret Manager에 저장하고 `algostep-api` 계정에 해당 Secret 읽기만 허용했다.
+- Cloud Build `804b3647-15f5-42a0-abb1-d119d01932c2`로 마이그레이션 7과 두 공급자 연결을 배포했다. GA4 실시간 보고서와 Amplitude 라이브 이벤트에서 화면 조회·관리 메뉴 이벤트 수신을 확인했다.
+- GA4 실제 검증에서 브라우저 컨텍스트가 없는 기존 이벤트 4건의 client_id 형식 오류를 발견했다. opaque analytics UUID를 해시한 숫자.숫자 형식으로 수정했으며 session_id/engagement_time을 임의 생성하지 않는다. 회귀 테스트 9건 및 타입 검사가 통과했고, 실제 GA4 검증 API의 오류가 없어졌다.
+- 최종 Cloud Build `6c32d5be-84b5-434c-906e-4887bc01cfaa` 성공 후 Cloud Run 이미지 1개만 갱신했다. 검증에서 거절돼 collect를 호출하지 않았던 4건만 개별 재검증 후 재처리했다. 최종 관리자 화면은 GA4 `HTTP_ACCEPTED` 8건, Amplitude `INGESTED` 8건, 거절/대기 0건이었다. 이 수치는 검증 시점의 값이다.
+- 서비스 health/ready/maintenance 200, 익명 세션 및 운영 API 접근 401, 마이그레이션 1~7 적용을 확인했다. 이미 전송된 이벤트를 재전송하거나 이벤트 발생 시각을 변경하지 않았다.
