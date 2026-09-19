@@ -12,6 +12,7 @@ import {
 } from "../src/domain.js";
 import { processReview } from "../src/review-worker.js";
 import { snapshotSvg } from "../src/snapshot-svg.js";
+import { topicQuizzes } from "../src/quiz-bank.js";
 let db: DB, app: Awaited<ReturnType<typeof createApp>>;
 const origin = "http://localhost:5173",
   runner = "test-runner-token-with-more-than-32-characters";
@@ -84,7 +85,7 @@ test("anonymous access and CSRF mutations are blocked", async () => {
   );
   assert.equal(
     (await request(u, "GET", "/api/problems")).json().problems.length,
-    15,
+    47,
   );
 });
 test("one user cannot read, edit or delete another user record", async () => {
@@ -452,4 +453,38 @@ test("quiz hides answer until submission and repeated request returns original r
   ).json();
   assert.equal(a.correct, true);
   assert.deepEqual(a, b);
+});
+
+test("every topic has three distinct quizzes and extra answers remain server-only", async () => {
+  const u = await login("expanded-quiz");
+  const topics = (await request(u, "GET", "/api/topics")).json().topics;
+  assert.equal(topics.length, 47);
+  for (const topic of topics) {
+    assert.equal(topic.quizzes.length, 3, topic.id);
+    assert.equal(new Set(topic.quizzes.map((q: any) => q.question)).size, 3);
+    for (const q of topic.quizzes) {
+      assert.equal(q.answer, undefined);
+      assert.equal(q.explanation, undefined);
+      assert.equal(new Set(q.options).size, 3);
+    }
+  }
+  const raw = (await db.query("SELECT * FROM topics WHERE id='bfs'")).rows[0];
+  const q = topicQuizzes(raw as any)[1];
+  const result = await request(u, "POST", "/api/quiz/bfs", {
+    questionId: q.id,
+    answer: q.answer,
+    requestKey: "expanded-bfs-one",
+  });
+  assert.equal(result.json().correct, true);
+  assert.equal(result.json().explanation, q.explanation);
+  assert.equal(
+    (
+      await request(u, "POST", "/api/quiz/bfs", {
+        questionId: "unknown",
+        answer: 0,
+        requestKey: "expanded-bfs-bad",
+      })
+    ).statusCode,
+    404,
+  );
 });

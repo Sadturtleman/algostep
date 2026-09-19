@@ -3,6 +3,7 @@ export function lessonFrames(
   topic: string,
   input: number[],
   target = 7,
+  graphInput?: number[][],
 ): LessonFrame[] {
   const a = input.slice(0, 8),
     frames: LessonFrame[] = [];
@@ -85,9 +86,11 @@ export function lessonFrames(
       }
     }
   } else if (["bfs", "dfs", "graph-list", "graph-matrix"].includes(topic)) {
-    const n = Math.max(1, a.length),
-      graph = Array.from({ length: n }, () => [] as number[]);
-    for (let i = 1; i < n; i++) {
+    const n = graphInput?.length ?? Math.max(1, a.length),
+      graph = graphInput
+        ? graphInput.map((row) => [...row])
+        : Array.from({ length: n }, () => [] as number[]);
+    for (let i = 1; !graphInput && i < n; i++) {
       const p = Math.abs(a[i]) % i;
       graph[p].push(i);
       graph[i].push(p);
@@ -99,7 +102,7 @@ export function lessonFrames(
       q = [0],
       order: number[] = [];
     visited[0] = true;
-    emit("입력 값으로 만든 연결 그래프. 정점 번호는 0부터 시작해요.", {
+    emit("정점 0에서 시작해 도달 가능한 정점을 탐색해요.", {
       graph,
       matrix,
       visited,

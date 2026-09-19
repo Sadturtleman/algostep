@@ -8,6 +8,7 @@ tmp/
 test-results/
 playwright-report/
 *.log
+__pycache__/
 *.sqlite*
 apps/runner/images/
 *.pem

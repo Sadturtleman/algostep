@@ -24,6 +24,12 @@ variable "rootfs_sha256" {
   default = ""
 }
 
+variable "worker_deletion_protection" {
+  type = bool
+  default = true
+  description = "Temporarily set false in a separate apply before an approved stateless worker image replacement; restore true in the replacement plan."
+}
+
 resource "google_compute_network" "workers" {
   count                   = var.enable_workers ? 1 : 0
   name                    = "algostep-workers"
@@ -84,7 +90,7 @@ resource "google_compute_instance" "worker" {
 
   allow_stopping_for_update = true
 
-  deletion_protection = true
+  deletion_protection = var.worker_deletion_protection
   boot_disk {
     initialize_params {
       image = var.worker_image
