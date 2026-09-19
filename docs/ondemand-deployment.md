@@ -2,6 +2,8 @@
 
 2026-09-19 선택한 구성: GCP `algostep` 프로젝트 하나에 Cloud Run 웹/API, Supabase Free PostgreSQL, N2-standard-2 격리 워커 최대 2대.
 
+배포 주소: https://algostep-90062080967.us-central1.run.app . Cloud Run·Supabase·Scheduler·워커 두 대의 실제 연결 검증은 [검증 기록](verification.md)의 마지막 절을 따른다. 워커는 무료 e2-micro가 아닌 유료 N2이며 유휴 시 중지한다.
+
 ## 실행 흐름
 
 1. 웹 실행 요청은 PostgreSQL 영속 큐에 저장한다.

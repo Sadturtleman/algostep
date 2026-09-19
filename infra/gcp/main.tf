@@ -118,6 +118,9 @@ resource "google_cloud_run_v2_service" "api" {
   name                = "algostep"
   location            = var.region
   deletion_protection = true
+  scaling {
+    min_instance_count = 0
+  }
   template {
 
     service_account                  = google_service_account.api.email

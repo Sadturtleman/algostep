@@ -10,7 +10,9 @@ GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 AP
 
 현재 계정의 API 키는 `aiplatform.googleapis.com` 제한 키이므로 `GEMINI_BACKEND=vertex-express`를 사용한다. 기존 키를 메모리에서만 사용한 실제 `gemini-3.8-flash` 호출이 HTTP 200/STOP으로 통과했다(입력 7·출력 1토큰). 승인 후 Secret Manager 저장을 완료했다. Developer API도 별도 설정으로 지원한다.
 
-OAuth 앱 `Algostep`와 웹 클라이언트를 생성했다. 실제 서비스 URL 확인 후 허용 출처를 등록해야 한다. 세션·워커·운영 인증 토큰과 DB 연결 문자열은 Secret Manager에 저장했다. Supabase TLS 연결과 마이그레이션을 확인했고, 검증된 운영 이미지로 워커 2대를 생성해 중지 상태로 준비했다. 아직 Cloud Run 서비스가 공개 배포됐다고 간주하지 않는다.
+서비스: https://algostep-90062080967.us-central1.run.app
+
+2026-09-19 Cloud Run 배포 완료. OAuth 앱 `Algostep`의 웹 클라이언트에 실제 서비스 출처를 저장했다. 세션·워커·운영 인증 토큰과 DB 연결 문자열 및 Gemini 키는 Secret Manager로 연결했다. Supabase TLS 연결과 마이그레이션, Scheduler OIDC 호출, 익명 접근 차단을 확인했다. 별도 검증 계정으로 세 언어 AC, 워커 두 대 자동 기동, GCS 추적 저장·조회, Gemini 리뷰 세 항목 반환, PDF HTTP 200을 확인했다. Google 계정 선택 팝업 이후 로그인과 Drive 동의/업로드는 사용자 확인 대기다. OAuth는 외부 테스트 모드이며 공개 출시 승인을 의미하지 않는다.
 
 1. 배포할 프로젝트와 지역을 정하고 결제 연결 및 API 권한을 확인한다.
 2. PostgreSQL, Google OAuth, Secret Manager의 DATABASE_URL/SESSION_SECRET/RUNNER_TOKEN/OPERATIONS_TOKEN/GEMINI_API_KEY를 준비한다.
