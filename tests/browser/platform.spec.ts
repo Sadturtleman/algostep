@@ -1,4 +1,72 @@
 import { test, expect } from "@playwright/test";
+test("all P1 and P2 topics expose working scenarios and advanced diagram controls", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/");
+  const names = [
+    "유니온 파인드",
+    "트라이",
+    "세그먼트 트리",
+    "펜윅 트리",
+    "다익스트라",
+    "벨만–포드",
+    "플로이드–워셜",
+    "최소 신장 트리",
+    "위상 정렬",
+    "KMP 문자열 검색",
+    "균형 탐색 트리",
+    "강한 연결 요소",
+    "최소 공통 조상",
+    "고급 DP 최적화",
+    "기하 알고리즘",
+    "FFT와 다항식 곱셈",
+    "최대 유량",
+  ];
+  for (const name of names) {
+    await page
+      .getByRole("button")
+      .filter({ has: page.getByRole("heading", { name, exact: true }) })
+      .click();
+    for (const v of ["0", "1", "2"]) {
+      await page.getByLabel("예제 선택", { exact: true }).selectOption(v);
+      await expect(
+        page.getByRole("img", { name: "학습 알고리즘 상태" }),
+      ).toBeVisible();
+      await page
+        .getByRole("button", { name: "다음 단계", exact: true })
+        .click();
+      const last = page.getByRole("button", { name: "마지막", exact: true });
+      if (await last.isEnabled()) await last.click();
+      await expect(
+        page.getByRole("button", { name: "다음 단계", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("table", { name: "단계별 계산 상태" }),
+      ).toBeVisible();
+    }
+    if (name === "최대 유량") {
+      await page.getByLabel("예제 선택", { exact: true }).selectOption("0");
+      await page.getByRole("button", { name: "마지막", exact: true }).click();
+      await page.screenshot({
+        path: "test-results/advanced-flow.png",
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole("button", { name: "테마 변경" }).click();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: "test-results/advanced-mobile.png",
+        fullPage: true,
+      });
+    }
+    await page.getByRole("button", { name: "학습 목록", exact: true }).click();
+  }
+});
 async function authenticate(page: any) {
   await page.request.post("/api/auth/google", {
     headers: { origin: "http://127.0.0.1:5173" },

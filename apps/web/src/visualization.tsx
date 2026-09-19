@@ -3,6 +3,8 @@ import { lessonExamples } from "./lesson-examples.js";
 import React, { useEffect, useState } from "react";
 import { ObjectGraph } from "./ObjectGraph.js";
 import { lessonFrames } from "./lesson-model.js";
+import { advancedTopics } from "./advanced-lessons.js";
+import { AdvancedLesson } from "./AdvancedLesson.js";
 export function TraceViewer({
   trace,
   topic,
@@ -240,12 +242,10 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
           key={topic}
           label="이진 트리와 현재 노드"
           nodes={nodes}
-          edges={nodes
-            .slice(1)
-            .map((node: any, i: number) => ({
-              from: String(Math.floor(i / 2)),
-              to: node.id,
-            }))}
+          edges={nodes.slice(1).map((node: any, i: number) => ({
+            from: String(Math.floor(i / 2)),
+            to: node.id,
+          }))}
         />
         <p>
           {topic === "tree" ? "중위 순회" : "힙 배열"}{" "}
@@ -272,20 +272,18 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
         <DiagramCanvas
           key={topic}
           label="배열 인덱스와 포인터"
-          nodes={a
-            .slice(0, 30)
-            .map((v: any, i: number) => ({
-              id: String(i),
-              x: 75 + (i % 6) * 120,
-              y: 65 + Math.floor(i / 6) * 110,
-              label: typeof v === "object" ? JSON.stringify(v) : String(v),
-              detail: `[${i}] ${i === vars.left ? "L " : ""}${i === vars.right ? "R " : ""}${i === vars.mid ? "mid" : ""}`,
-              shape: "card" as const,
-              width: 100,
-              height: 68,
-              state:
-                i === vars.mid ? "active" : i === vars.answer ? "visited" : "",
-            }))}
+          nodes={a.slice(0, 30).map((v: any, i: number) => ({
+            id: String(i),
+            x: 75 + (i % 6) * 120,
+            y: 65 + Math.floor(i / 6) * 110,
+            label: typeof v === "object" ? JSON.stringify(v) : String(v),
+            detail: `[${i}] ${i === vars.left ? "L " : ""}${i === vars.right ? "R " : ""}${i === vars.mid ? "mid" : ""}`,
+            shape: "card" as const,
+            width: 100,
+            height: 68,
+            state:
+              i === vars.mid ? "active" : i === vars.answer ? "visited" : "",
+          }))}
         />
         {a.length === 0 && <p>비어 있는 구조예요.</p>}
         {a.length > 30 && (
@@ -301,6 +299,13 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
   );
 }
 export function LessonDiagram({ topic }: { topic: string }) {
+  return (advancedTopics as readonly string[]).includes(topic) ? (
+    <AdvancedLesson key={topic} topic={topic} />
+  ) : (
+    <CoreLessonDiagram key={topic} topic={topic} />
+  );
+}
+function CoreLessonDiagram({ topic }: { topic: string }) {
   const examples = lessonExamples(topic);
   const [exampleIndex, setExampleIndex] = useState(0);
   const [step, setStep] = useState(0);

@@ -1,4 +1,4 @@
-import React, { useId, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 export type DiagramNode = {
   id: string;
   x: number;
@@ -58,10 +58,12 @@ export function DiagramCanvas({
   nodes,
   edges = [],
   label,
+  responsiveFit = false,
 }: {
   nodes: DiagramNode[];
   edges?: DiagramEdge[];
   label: string;
+  responsiveFit?: boolean;
 }) {
   const [moved, setMoved] = useState<Record<string, { x: number; y: number }>>(
       {},
@@ -97,6 +99,29 @@ export function DiagramCanvas({
       ...positioned.map((n) => n.y + (n.height ?? 60) / 2 + 65),
     );
   const byId = new Map(positioned.map((n) => [n.id, n]));
+  const bounds = useRef({ width, height });
+  bounds.current = { width, height };
+  useEffect(() => {
+    if (!responsiveFit || !viewport.current) return;
+    let previousWidth = -1;
+    const observer = new ResizeObserver(([entry]) => {
+      const available = entry.contentRect.width;
+      if (Math.abs(available - previousWidth) < 1) return;
+      previousWidth = available;
+      setZoom(
+        Math.max(
+          0.3,
+          Math.min(
+            1,
+            (available - 16) / bounds.current.width,
+            500 / bounds.current.height,
+          ),
+        ),
+      );
+    });
+    observer.observe(viewport.current);
+    return () => observer.disconnect();
+  }, [responsiveFit]);
   const point = (e: React.PointerEvent) => {
     const matrix = svg.current?.getScreenCTM();
     if (!matrix) return null;
@@ -210,6 +235,13 @@ export function DiagramCanvas({
               y1 = a.y + (dy / length) * ar,
               x2 = b.x - (dx / length) * br,
               y2 = b.y - (dy / length) * br;
+            const bend = edges.some(
+              (other) => other.from === e.to && other.to === e.from,
+            )
+              ? 42
+              : 0;
+            const cx = (x1 + x2) / 2 - (dy / length) * bend,
+              cy = (y1 + y2) / 2 + (dx / length) * bend;
             return (
               <g key={`${e.from}-${e.to}-${i}`} className="diagram-edge">
                 {a.id === b.id ? (
@@ -220,11 +252,9 @@ export function DiagramCanvas({
                     markerEnd={e.directed ? `url(#${marker})` : undefined}
                   />
                 ) : (
-                  <line
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
+                  <path
+                    d={`M${x1},${y1} Q${cx},${cy} ${x2},${y2}`}
+                    fill="none"
                     className="edge"
                     markerEnd={e.directed ? `url(#${marker})` : undefined}
                   />
@@ -232,8 +262,8 @@ export function DiagramCanvas({
                 {e.label && (
                   <text
                     className="edge-label"
-                    x={(x1 + x2) / 2}
-                    y={(y1 + y2) / 2 - 8}
+                    x={(x1 + 2 * cx + x2) / 4}
+                    y={(y1 + 2 * cy + y2) / 4 - 8}
                     textAnchor="middle"
                   >
                     {e.label}
