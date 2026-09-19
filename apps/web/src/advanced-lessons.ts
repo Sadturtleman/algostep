@@ -195,6 +195,8 @@ export function advancedLesson(topic: string, variant = 0): AdvancedLesson {
         );
       state("거리[0]=0, 나머지는 ∞로 초기화");
       if (topic === "dijkstra") {
+        const outgoing = Array.from({ length: n }, () => [] as Edge[]);
+        for (const edge of edges) outgoing[edge[0]].push(edge);
         for (let round = 0; round < n; round++) {
           let u = -1;
           for (let i = 0; i < n; i++)
@@ -202,8 +204,8 @@ export function advancedLesson(topic: string, variant = 0): AdvancedLesson {
           if (u < 0 || !Number.isFinite(dist[u])) break;
           used[u] = true;
           state(`정점 ${u}의 최단 거리 ${dist[u]} 확정`, u);
-          for (const [a, b, w] of edges)
-            if (a === u && dist[b] > dist[a] + w) {
+          for (const [a, b, w] of outgoing[u])
+            if (dist[b] > dist[a] + w) {
               dist[b] = dist[a] + w;
               prev[b] = a;
               state(`${a}→${b}: 거리 ${dist[b]}로 갱신`, b);
