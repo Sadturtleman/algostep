@@ -11,7 +11,7 @@
 
 `compose.yaml`은 PostgreSQL/API/nginx 컨테이너 예시다. `.env`에 `POSTGRES_PASSWORD`를 추가하고 외부 TLS 프록시에서 `localhost:8080`으로 전달한다. 공개 API 프록시는 `/api/internal`을 차단한다. VM 워커는 사설 API 주소를 사용한다. Compose에 VM 워커를 일반 컨테이너로 넣지 않는다.
 
-현재 API 프로세스는 리뷰/만료 작업을 함께 폴링한다. 완전한 서버리스 함수 배포를 완료한 구성이 아니다. 서버리스로 옮길 때 API 어댑터와 별도 예약/리뷰 워커를 배치하고 연결 풀/비밀키/동시성을 구성해야 한다.
+로컬에서는 API가 유지보수를 폴링한다. Cloud Run에서는 `BACKGROUND_WORKER=false`로 끄고 Cloud Scheduler의 분당 OIDC 요청으로 리뷰·만료·워커 전원 제어를 처리한다. 현재 선택한 구성은 [Cloud Run·Supabase·온디맨드 워커](ondemand-deployment.md)에 정리했다.
 
 ## Linux VM 호스트
 

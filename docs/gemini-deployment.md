@@ -6,19 +6,21 @@ Gemini Developer API의 `gemini-3.8-flash`를 기본 리뷰 모델로 연결했�
 
 ## 배포 상태
 
-클라우드 배포는 사용자 요청으로 진행 대상이다. 현재는 GCP 프로젝트 선택, 월 예산, Google OAuth 클라이언트, DB, Secret 설정이 미완료이므로 배포하지 않았다. 브라우저에서 확인된 RuleUp 프로젝트는 다른 서비스이므로 임의 배포 대상으로 사용하지 않았다. 로컬 gcloud/ADC도 연결되지 않았다. 앱 코드 및 Terraform 검증은 실제 계정 연동 검증을 대신하지 않는다.
+GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 API를 확인했다. Artifact Registry `us-central1/algostep`에 최종 Cloud Build `8f003900-2a4a-4e15-afd8-7d3ad5954a93` 이미지를 게시해 배포했다. Supabase 프로젝트 `qsrxfuybohxdoqrxrsko`의 세션 풀러, DB Secret, 운영 워커 이미지 연결을 검증했다. 다른 프로젝트의 자원을 사용하지 않는다.
 
-1. 배포할 프로젝트와 지역을 정하고 결제 연결 및 API 권한을 확인한다.
-2. PostgreSQL, Google OAuth, Secret Manager의 DATABASE_URL/SESSION_SECRET/RUNNER_TOKEN/OPERATIONS_TOKEN/GEMINI_API_KEY를 준비한다.
-3. Cloud Run 이미지 게시, Terraform plan/apply, OAuth 허용 출처 등록을 진행한다. 키는 채팅·Git·tfvars 값에 넣지 않는다.
-4. 별도 KVM 호스트를 연결하고 실제 로그인·세 언어 실행·Gemini 리뷰·PDF·Drive를 확인한다.
-5. Billing의 BigQuery 내보내기를 켜고 실제 비용을 수집한다. 내보내기 이전 사용량은 소급 범위에 제한이 있을 수 있다.
+현재 계정의 API 키는 `aiplatform.googleapis.com` 제한 키이므로 `GEMINI_BACKEND=vertex-express`를 사용한다. 기존 키를 메모리에서만 사용한 실제 `gemini-3.8-flash` 호출이 HTTP 200/STOP으로 통과했다(입력 7·출력 1토큰). 승인 후 Secret Manager 저장을 완료했다. Developer API도 별도 설정으로 지원한다.
+
+서비스: https://algostep-90062080967.us-central1.run.app
+
+2026-09-19 Cloud Run 배포 완료. OAuth 앱 `Algostep`의 웹 클라이언트에 실제 서비스 출처를 저장했다. 세션·워커·운영 인증 토큰과 DB 연결 문자열 및 Gemini 키는 Secret Manager로 연결했다. Supabase TLS 연결과 마이그레이션, Scheduler OIDC 호출, 익명 접근 차단을 확인했다. 별도 검증 계정으로 세 언어 AC, 워커 두 대 자동 기동, GCS 추적 저장·조회, Gemini 리뷰 세 항목 반환, PDF HTTP 200을 확인했다. Google 계정 선택 팝업 이후 로그인과 Drive 동의/업로드는 사용자 확인 대기다. OAuth는 외부 테스트 모드이며 공개 출시 승인을 의미하지 않는다.
+
+남은 외부 검증은 Google 로그인 완료, Drive 업로드, Android 운영 로그인이다. Billing의 BigQuery 내보내기를 설정해 실제 비용을 수집하는 작업도 남아 있다. 현재 비용표는 사용량 기반 추정이며 실제 청구서가 아니다. 내보내기 이전 사용량은 소급 범위에 제한이 있을 수 있다.
 
 ## 비용표와 그래프
 
 [인터랙티브 비용 계산기](cost-report.html)는 실행 수, 리뷰 비율, 토큰 수, 환율 가정 및 2027년 요금 변경을 조정할 수 있다. 계산 원본은 `scripts/cost-model.mjs`이며 `node scripts/cost-model.mjs --json`으로 재현한다.
 
-Iowa 공식 기준 단가와 명시한 계획 가정을 혼합한 예산 시뮬레이션이다. 현재 Terraform 기본 서울 리전의 확정 견적이 아니다. N2 호스트는 사용량이 없어도 비용이 발생하며 무료 리뷰도 운영자는 API 요금을 부담한다. DB $20, 기타 $3은 제품 확정 전의 예산 항목이다. 실제 SKU 선정 후 바꿔야 한다. 2026년 Gemini 프로모션 종료 시 단가가 두 배가 되므로 선택 항목으로 분리했다. 할인·무료 한도·세금은 차감/가산하지 않았다.
+Iowa 공식 기준 단가와 명시한 계획 가정을 혼합한 예산 시뮬레이션이다. 두 N2 호스트의 합산 가동 시간과 실행 수를 독립적으로 조절한다. 기본 가정은 월 합산 60시간, 디스크 40GiB 두 개, Supabase Free $0, 기타 예산 $3이다. 꺼진 워커에도 디스크 비용은 남는다. 무료 리뷰도 운영자는 API 요금을 부담한다. Vertex 글로벌 표준 Flash 요금은 2026년 말까지 입력 $0.75·출력/추론 $3.75/백만 토큰, 2027년 두 배다. 할인·무료 한도·세금은 차감/가산하지 않았다.
 
 VM 워커의 빈 큐 확인 간격은 1.5초에서 점차 15초까지 늘어난다. 작업을 받으면 초기 간격으로 돌아간다. 지속적인 빈 큐 조회 비용을 줄이는 대신 오래 유휴 상태였던 실행은 최대 약 15초의 추가 대기가 생길 수 있다. 서버 전역 10개 임대 제한은 유지한다.
 

@@ -2,6 +2,8 @@
 
 ## 구현한 동작
 
+- 온디맨드 N2 워커 최대 2대: 큐 기반 기동, 호스트당 2슬롯, 15분 유휴 종료, 종료 전 작업 배정 차단, Compute 요청 재시도. Supabase 전용 스키마 및 Vertex Express 연결. 클라우드 실제 배포와 검증 상태는 [배포 문서](gemini-deployment.md)를 확인한다.
+
 - 서버·웹·VM 워커 별도 패키지 및 빌드, GitHub CI.
 - Google ID 토큰 검증, HttpOnly 세션, 사용자 소유 데이터 검증, CSRF, 요청 빈도 제한.
 - 라이트/다크 웹, 로그인, 학습 목록, 설명, 퀴즈, 문제 목록, Monaco 편집기, 기록, 전체 화면 네트워크 복구.
@@ -17,7 +19,7 @@
 - Python/C++은 seccomp로 자식 프로세스·스레드 생성을 차단한다. Java 21은 별도 진입점의 학습 정책으로 사용자 Thread/ThreadGroup과 프로세스 생성을 제한하고 JVM 내부 스레드는 유지한다. VM 격리가 보안 경계이며 언어 정책 자체를 보안 샌드박스로 간주하지 않는다.
 - 테스트 및 추적 실행 전 작업 디렉터리를 복원해 이전 실행의 파일 변경·심볼릭 링크 영향을 제거한다. 운영 워커 시작 시 커널/rootfs SHA-256과 HTTPS API를 요구한다.
 - 버전별 DB 마이그레이션, GCS gzip 추적 저장·체크섬·삭제 outbox, 관리자 콘텐츠 검증/게시 CLI·감사 이벤트, 운영 상태 API와 유지보수 작업.
-- Cloud Run 통합 이미지와 GCP Terraform(Cloud Run/GCS/Secret 참조/OIDC 스케줄러). 로컬 Terraform validate 통과. 실제 클라우드 리소스는 생성하지 않았다.
+- Cloud Run 통합 이미지와 GCP Terraform(Cloud Run/GCS/Secret 참조/OIDC 스케줄러). 운영 워커 2대와 전용 네트워크·IAM 생성 완료. Supabase 실제 TLS 연결과 마이그레이션 검증 완료. 웹/API 배포 및 종단 검증 상태는 배포 문서를 따른다.
 
 ## 현재 지원 경계
 
@@ -30,7 +32,7 @@
 ## 사용자 결정 및 외부 연결 대기
 
 - **결제 미정(사용자 확인)**: PG·상품 수량·가격·환불 정책이 미정이므로 실제 결제/추가 이용권은 비활성이다. 가짜 주문/성공 처리도 제공하지 않는다. 정책이 결정되면 공급자 연동과 결제 검증을 구현해야 한다.
-- **최저 비용 배포 검토(사용자 확인)**: [GCP 비용/배포안](gcp-cost-plan.md)에 서버리스 API와 별도 KVM 워커를 비교했다. Cloud SQL/자체 DB, KVM 호스트, 운영 시간·지역·도메인·예산 결정 후 배포한다.
+- **배포 구성 확정(사용자 확인)**: GCP `algostep` 하나, Cloud Run, Supabase Free, 유휴 시 중지하는 N2 워커 최대 2대. [온디맨드 배포](ondemand-deployment.md) 참조. 실제 계정 연결 검증은 진행 중이다.
 - Android APK는 설정 없는 빌드 검증용으로 생성한다. 실제 도메인, OAuth Android 패키지/서명 인증서 등록, release 서명·실기기 로그인·Play 게시가 남아 있다.
 - 백업/복원, 로그 보관·경보 임계치, 삭제 이력 재적용 정책은 [운영 절차](operations.md)에 있으며 실제 운영 계정에서 설정·훈련해야 한다.
 

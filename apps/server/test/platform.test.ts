@@ -315,6 +315,64 @@ test("global VM claims never exceed ten and stale result tokens are rejected", a
   );
   await request(u, "DELETE", "/api/records/" + r.id);
 });
+test("managed worker claims enforce host identity, stop fencing and two slots", async () => {
+  const keys = [
+    "WORKER_AUTOSCALE",
+    "GCP_PROJECT",
+    "WORKER_ZONE",
+    "WORKER_NAMES",
+    "RUNNER_SLOTS_PER_HOST",
+  ];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const u = await login("managed-fleet"),
+    r = await record(u);
+  try {
+    Object.assign(process.env, {
+      WORKER_AUTOSCALE: "true",
+      GCP_PROJECT: "algostep",
+      WORKER_ZONE: "us-central1-a",
+      WORKER_NAMES: "worker-1,worker-2",
+      RUNNER_SLOTS_PER_HOST: "2",
+    });
+    await db.query(
+      "UPDATE executions SET status='FAILED' WHERE status IN ('QUEUED','RUNNING')",
+    );
+    await db.query(
+      "INSERT INTO worker_hosts(name,desired) VALUES('worker-1','RUNNING'),('worker-2','STOPPED')",
+    );
+    for (let i = 0; i < 4; i++)
+      await request(u, "POST", `/api/records/${r.id}/executions`, {
+        requestKey: `managed-${i}`,
+        revision: 0,
+      });
+    const claim = async (workerName?: string) =>
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/internal/claim",
+          headers: { authorization: "Bearer " + runner },
+          payload: { workerName },
+        })
+      ).json().job;
+    assert.equal(await claim(), null);
+    assert.equal(await claim("unknown"), null);
+    assert.equal(await claim("worker-2"), null);
+    assert.ok(await claim("worker-1"));
+    assert.ok(await claim("worker-1"));
+    assert.equal(await claim("worker-1"), null);
+    await db.query(
+      "UPDATE worker_hosts SET desired='RUNNING',action='STOP' WHERE name='worker-2'",
+    );
+    assert.equal(await claim("worker-2"), null);
+    await db.query("UPDATE worker_hosts SET action=NULL WHERE name='worker-2'");
+    assert.ok(await claim("worker-2"));
+  } finally {
+    for (const k of keys)
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    await request(u, "DELETE", "/api/records/" + r.id);
+  }
+});
 test("100-record cap evicts oldest; expired records cannot be read and are purged", async () => {
   const u = await login("retention");
   const ids = Array.from({ length: 100 }, () => id());

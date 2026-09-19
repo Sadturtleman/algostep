@@ -33,7 +33,9 @@ async function slot() {
   let idleDelay = 1500;
   while (!stopping) {
     try {
-      const { job } = await post("claim", {});
+      const { job } = await post("claim", {
+        workerName: process.env.WORKER_NAME,
+      });
       if (!job) {
         await new Promise((r) => setTimeout(r, idleDelay));
         idleDelay = Math.min(idleDelay * 2, 15000);

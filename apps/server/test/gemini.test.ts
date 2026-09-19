@@ -6,6 +6,14 @@ test("Gemini configuration is disabled without a key and fixes the Google endpoi
   const options = llmOptions({ GEMINI_API_KEY: "test-key" })!;
   assert.equal(options.model, "gemini-3.8-flash");
   assert.equal(new URL(options.url).host, "generativelanguage.googleapis.com");
+  assert.equal(
+    llmOptions({ GEMINI_API_KEY: "test", GEMINI_BACKEND: "vertex-express" })!
+      .url,
+    "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent",
+  );
+  assert.throws(() =>
+    llmOptions({ GEMINI_API_KEY: "test", GEMINI_BACKEND: "unknown" }),
+  );
   assert.throws(() =>
     llmOptions({ GEMINI_API_KEY: "test", GEMINI_MODEL: "../bad?key=x" }),
   );

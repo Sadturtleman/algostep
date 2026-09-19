@@ -12,13 +12,19 @@ export function llmOptions(env = process.env): LlmOptions | undefined {
   if (provider === "gemini") {
     if (!env.GEMINI_API_KEY) return;
     const model = env.GEMINI_MODEL || "gemini-3.8-flash";
+    const backend = env.GEMINI_BACKEND || "developer";
+    if (!["developer", "vertex-express"].includes(backend))
+      throw new Error("INVALID_GEMINI_BACKEND");
     if (!/^gemini-[a-z0-9.-]+$/.test(model))
       throw new Error("INVALID_GEMINI_MODEL");
     return {
       provider,
       model,
       key: env.GEMINI_API_KEY,
-      url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      url:
+        backend === "vertex-express"
+          ? `https://aiplatform.googleapis.com/v1/publishers/google/models/${model}:generateContent`
+          : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     };
   }
   if (env.LLM_API_URL && env.LLM_API_KEY && env.LLM_MODEL)

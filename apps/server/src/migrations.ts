@@ -23,6 +23,13 @@ const migrations = [
     sql: `CREATE TABLE review_api_usage(id uuid PRIMARY KEY, provider text NOT NULL, model text NOT NULL, input_tokens bigint, output_tokens bigint, thinking_tokens bigint, created_at timestamptz NOT NULL DEFAULT now());
   CREATE INDEX review_api_usage_created ON review_api_usage(created_at);`,
   },
+  {
+    version: 4,
+    sql: `ALTER TABLE executions ADD COLUMN worker_name text;
+    CREATE TABLE worker_hosts(name text PRIMARY KEY,desired text NOT NULL,observed text,observed_at timestamptz,idle_since timestamptz NOT NULL DEFAULT now(),action text,action_id uuid);
+    CREATE TABLE fleet_controller(id integer PRIMARY KEY CHECK(id=1),token uuid,expires_at timestamptz);
+    INSERT INTO fleet_controller(id) VALUES(1);`,
+  },
 ];
 
 export async function migrate(db: DB) {
