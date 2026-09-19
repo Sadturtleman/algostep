@@ -1,4 +1,5 @@
 import type { DB } from "./db.js";
+import { formatReference } from './reference-format.js';
 type Spec = {
   id: string;
   topic: string;
@@ -186,6 +187,8 @@ export async function seedPractice(db: DB) {
       cpp: `#include <iostream>\n#include <vector>\n#include <algorithm>\n#include <functional>\n#include <unordered_set>\n#include <queue>\n#include <stack>\nusing namespace std;\nint main(){int n;cin>>n;vector<long long> a(n);for(auto &x:a)cin>>x;\n${s.cpp}\nfor(int i=0;i<(int)a.size();++i){if(i)cout<<' ';cout<<a[i];}cout<<'\\n';}\n`,
       java: `import java.util.*;\npublic class Main { public static void main(String[] args){Scanner sc=new Scanner(System.in);int n=sc.nextInt();long[] a=new long[n];for(int i=0;i<n;++i)a[i]=sc.nextLong();\n${s.java}\nStringJoiner out=new StringJoiner(" ");for(long x:a)out.add(""+x);System.out.println(out);}}\n`,
     };
+    refs.cpp=formatReference(refs.cpp);
+    refs.java=formatReference(refs.java);
     await db.query(
       "INSERT INTO problems(id,topic_id,version,title,statement,input_spec,output_spec,constraints_text,tests,references_code,starters,complexity_time,complexity_space) VALUES($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING",
       [

@@ -37,6 +37,8 @@ jobs:
         run: |
           bash apps/runner/build-rootfs.sh
           python3 scripts/download-test-kernel.py
+          sudo chown root:root apps/runner/images/rootfs.ext4
+          sudo chmod 0444 apps/runner/images/rootfs.ext4
       - name: Execute reference programs in disposable VMs
         env:
           BOUNDARY_ONLY: ${{ inputs.boundary_only && '1' || '0' }}

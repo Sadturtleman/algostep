@@ -6,6 +6,8 @@ import {
   writeFile,
   rm,
   chown,
+  link,
+  lstat,
 } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -33,11 +35,14 @@ export async function runIsolated(job: Job, signal?: AbortSignal) {
   signal?.addEventListener("abort", kill, { once: true });
   try {
     await copyFile(kernel, join(root, "vmlinux"));
-    await copyFile(
-      rootfs,
-      join(root, "rootfs.ext4"),
-      constants.COPYFILE_FICLONE,
-    );
+    let sharedRootfs=false;
+    const imageInfo=await lstat(rootfs);
+    // Sharing is safe only for a root-owned immutable regular file. Never make
+    // a shared inode writable by the VMM uid; all guest drives remain read-only.
+    if(imageInfo.isFile() && imageInfo.uid===0 && (imageInfo.mode & 0o222)===0) {
+      try {await link(rootfs,join(root,'rootfs.ext4'));sharedRootfs=true;}catch{ /* Cross-device filesystems use a private copy below. */ }
+    }
+    if(!sharedRootfs)await copyFile(rootfs,join(root,'rootfs.ext4'),constants.COPYFILE_FICLONE);
     await writeFile(
       join(root, "config.json"),
       JSON.stringify({
@@ -61,7 +66,7 @@ export async function runIsolated(job: Job, signal?: AbortSignal) {
     const uid = Number(process.env.JAILER_UID ?? 1001),
       gid = Number(process.env.JAILER_GID ?? 1001);
     await chown(root, uid, gid);
-    for (const name of ["vmlinux", "rootfs.ext4", "config.json"])
+    for (const name of ["vmlinux", ...(sharedRootfs?[]:["rootfs.ext4"]), "config.json"])
       await chown(join(root, name), uid, gid);
     signal?.throwIfAborted();
     // Jailer creates the chroot and applies uid/gid isolation. Never execute submitted code on this host.

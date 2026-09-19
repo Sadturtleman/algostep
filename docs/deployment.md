@@ -42,3 +42,8 @@ Jailer 초기화에는 호스트 권한이 필요하므로 전용 격리 호스�
 - https://github.com/firecracker-microvm/firecracker/blob/v1.17.0/docs/getting-started.md
 - https://github.com/firecracker-microvm/firecracker/blob/v1.17.0/docs/jailer.md
 - https://github.com/firecracker-microvm/firecracker/blob/v1.17.0/docs/vsock.md
+# 운영 이미지 무결성과 시작 비용
+
+운영 워커는 `NODE_ENV=production`, HTTPS `API_URL`, `KERNEL_SHA256`, `ROOTFS_SHA256`을 요구한다. 승인한 커널/rootfs의 SHA-256을 배포 설정에 고정하고 워커 시작 시 검증한다. 업데이트 시 새 파일 경로로 배치하고 검증 후 워커를 교체한다. 실행 중인 이미지 파일을 덮어쓰지 않는다.
+
+rootfs가 root 소유·쓰기 권한 없는 일반 파일이고 워커 작업 폴더와 같은 파일시스템이면 jailer 디렉터리에 hard link를 만들어 VM마다 3GiB를 복사하는 비용을 줄인다. 공유 inode는 VMM uid로 chown하지 않는다. 조건을 만족하지 않거나 다른 파일시스템이면 기존의 별도 복사본을 사용한다. 게스트 드라이브는 항상 read-only이며 쓰기 데이터는 게스트 tmpfs다. 운영 파일은 `root:root`, `0444`로 배치하고 상위 디렉터리도 운영자만 변경하도록 한다.
