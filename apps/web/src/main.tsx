@@ -987,8 +987,8 @@ function App() {
               <span className="eyebrow">CODE & EXPLORE</span>
               <h1>이제, 코드로 확인해요.</h1>
               <p>
-                문제를 고르면 기본 개념과 예제 동작부터 살펴볼 수 있어요. 이해한
-                뒤 코드 작성으로 이어집니다.
+                풀고 싶은 문제를 골라 바로 코드를 작성해 보세요. 개념이 궁금하면
+                설명과 예제도 먼저 살펴볼 수 있어요.
               </p>
             </div>
             <div className="problem-list">
@@ -1004,17 +1004,26 @@ function App() {
                       공개 테스트 {p.tests.length}개 · Python / C++ / Java
                     </small>
                   </div>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      openLesson(
-                        topics.find((t) => t.id === p.topic_id),
-                        p.id,
-                      )
-                    }
-                  >
-                    개념과 예제 보기 <ArrowRight size={18} />
-                  </button>
+                  <div className="problem-actions">
+                    <button
+                      disabled={busy}
+                      onClick={() => void startPractice(p.id)}
+                    >
+                      코드로 풀기 <ArrowRight size={18} />
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        openLesson(
+                          topics.find((t) => t.id === p.topic_id),
+                          p.id,
+                        )
+                      }
+                    >
+                      개념과 예제 보기 <ArrowRight size={18} />
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>

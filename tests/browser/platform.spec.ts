@@ -1,4 +1,48 @@
 import { test, expect } from "@playwright/test";
+
+test("problem navigation opens the selected coding workspace directly", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/");
+  const before = (await (await page.request.get("/api/records")).json()).records
+    .length;
+  await page.getByRole("button", { name: "문제 풀기", exact: true }).click();
+  const row = page
+    .getByRole("article")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "FFT로 다항식 곱하기",
+        exact: true,
+      }),
+    });
+  await expect(
+    row.getByRole("button", { name: "개념과 예제 보기", exact: true }),
+  ).toBeVisible();
+  expect(
+    (await (await page.request.get("/api/records")).json()).records.length,
+  ).toBe(before);
+  await row.getByRole("button", { name: "코드로 풀기", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "FFT로 다항식 곱하기", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("main.py", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "전체 테스트 실행", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+  ).toHaveCount(0);
+  const records = (await (await page.request.get("/api/records")).json())
+    .records;
+  expect(records.length).toBe(before + 1);
+  expect(records.some((r: any) => r.problem_id === "fft-v1")).toBe(true);
+  await page.screenshot({
+    path: "test-results/direct-problem-workspace.png",
+    fullPage: true,
+  });
+});
+
 test("all P1 and P2 topics expose working scenarios and advanced diagram controls", async ({
   page,
 }) => {
