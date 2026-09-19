@@ -6,7 +6,9 @@ Gemini Developer API의 `gemini-3.8-flash`를 기본 리뷰 모델로 연결했�
 
 ## 배포 상태
 
-클라우드 배포는 사용자 요청으로 진행 대상이다. 현재는 GCP 프로젝트 선택, 월 예산, Google OAuth 클라이언트, DB, Secret 설정이 미완료이므로 배포하지 않았다. 브라우저에서 확인된 RuleUp 프로젝트는 다른 서비스이므로 임의 배포 대상으로 사용하지 않았다. 로컬 gcloud/ADC도 연결되지 않았다. 앱 코드 및 Terraform 검증은 실제 계정 연동 검증을 대신하지 않는다.
+GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 API를 확인했다. Artifact Registry `us-central1/algostep`를 생성했고 Cloud Build `033ec262-dbaf-4d8a-a5ab-6f9184686b50`에서 서버·웹 이미지 빌드가 성공했다. 운영 서비스는 아직 공개 검증 전이다. Supabase 프로젝트 `qsrxfuybohxdoqrxrsko`와 세션 풀러를 확인했으며 DB Secret 연결, Google OAuth, 실제 워커 이미지 검증을 진행 중이다. 다른 프로젝트의 자원을 사용하지 않는다.
+
+현재 계정의 API 키는 `aiplatform.googleapis.com` 제한 키이므로 `GEMINI_BACKEND=vertex-express`를 사용한다. 키를 Secret Manager에 연결한 뒤 실제 모델 호출을 검증해야 한다. Developer API도 별도 설정으로 지원한다.
 
 1. 배포할 프로젝트와 지역을 정하고 결제 연결 및 API 권한을 확인한다.
 2. PostgreSQL, Google OAuth, Secret Manager의 DATABASE_URL/SESSION_SECRET/RUNNER_TOKEN/OPERATIONS_TOKEN/GEMINI_API_KEY를 준비한다.
@@ -18,7 +20,7 @@ Gemini Developer API의 `gemini-3.8-flash`를 기본 리뷰 모델로 연결했�
 
 [인터랙티브 비용 계산기](cost-report.html)는 실행 수, 리뷰 비율, 토큰 수, 환율 가정 및 2027년 요금 변경을 조정할 수 있다. 계산 원본은 `scripts/cost-model.mjs`이며 `node scripts/cost-model.mjs --json`으로 재현한다.
 
-Iowa 공식 기준 단가와 명시한 계획 가정을 혼합한 예산 시뮬레이션이다. 현재 Terraform 기본 서울 리전의 확정 견적이 아니다. N2 호스트는 사용량이 없어도 비용이 발생하며 무료 리뷰도 운영자는 API 요금을 부담한다. DB $20, 기타 $3은 제품 확정 전의 예산 항목이다. 실제 SKU 선정 후 바꿔야 한다. 2026년 Gemini 프로모션 종료 시 단가가 두 배가 되므로 선택 항목으로 분리했다. 할인·무료 한도·세금은 차감/가산하지 않았다.
+Iowa 공식 기준 단가와 명시한 계획 가정을 혼합한 예산 시뮬레이션이다. 두 N2 호스트의 합산 가동 시간과 실행 수를 독립적으로 조절한다. 기본 가정은 월 합산 60시간, 디스크 30GiB 두 개, Supabase Free $0, 기타 예산 $3이다. 꺼진 워커에도 디스크 비용은 남는다. 무료 리뷰도 운영자는 API 요금을 부담한다. Vertex 글로벌 표준 Flash 요금은 2026년 말까지 입력 $0.75·출력/추론 $3.75/백만 토큰, 2027년 두 배다. 할인·무료 한도·세금은 차감/가산하지 않았다.
 
 VM 워커의 빈 큐 확인 간격은 1.5초에서 점차 15초까지 늘어난다. 작업을 받으면 초기 간격으로 돌아간다. 지속적인 빈 큐 조회 비용을 줄이는 대신 오래 유휴 상태였던 실행은 최대 약 15초의 추가 대기가 생길 수 있다. 서버 전역 10개 임대 제한은 유지한다.
 

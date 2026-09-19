@@ -1,3 +1,4 @@
+import { fleetConfig } from "./worker-fleet.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
@@ -85,7 +86,11 @@ export async function createApp(c: Config) {
   });
   await app.register(cookie);
   await app.register(cors, { origin: c.origin, credentials: true });
-  await app.register(rateLimit, { max: req=>req.routeOptions.url?.startsWith('/api/internal/')?1200:240, timeWindow: "1 minute" });
+  await app.register(rateLimit, {
+    max: (req) =>
+      req.routeOptions.url?.startsWith("/api/internal/") ? 1200 : 240,
+    timeWindow: "1 minute",
+  });
   const google = new OAuth2Client(c.googleClientId);
   const verify =
     c.verifyGoogle ??
@@ -229,7 +234,9 @@ export async function createApp(c: Config) {
   const user = (req: any) => req.user.id as string;
   app.get("/api/operations/metrics", async () => ({
     reviewApiUsage30Days: (
-      await c.db.query("SELECT provider,model,count(*)::int AS responses,count(input_tokens)::int AS measured_responses,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(thinking_tokens) AS thinking_tokens FROM review_api_usage WHERE created_at>=now()-interval '30 days' GROUP BY provider,model")
+      await c.db.query(
+        "SELECT provider,model,count(*)::int AS responses,count(input_tokens)::int AS measured_responses,sum(input_tokens) AS input_tokens,sum(output_tokens) AS output_tokens,sum(thinking_tokens) AS thinking_tokens FROM review_api_usage WHERE created_at>=now()-interval '30 days' GROUP BY provider,model",
+      )
     ).rows,
     executions: (
       await c.db.query(
@@ -666,9 +673,32 @@ export async function createApp(c: Config) {
       )
       .send(pdf);
   });
-  app.post("/api/internal/claim", async () =>
+  app.post("/api/internal/claim", async (req: any) =>
     c.db.tx(async (db) => {
       await db.query("SELECT id FROM execution_control WHERE id=1 FOR UPDATE");
+      const fleet = fleetConfig();
+      const worker = req.body?.workerName;
+      if (fleet) {
+        if (!fleet.names.includes(worker)) return { job: null };
+        const host = (
+          await db.query(
+            "SELECT desired,action FROM worker_hosts WHERE name=$1",
+            [worker],
+          )
+        ).rows[0];
+        if (!host || host.desired !== "RUNNING" || host.action === "STOP")
+          return { job: null };
+        const busy = Number(
+          (
+            await db.query(
+              "SELECT count(*) AS n FROM executions WHERE status='RUNNING' AND worker_name=$1 AND lease_expires_at>now()",
+              [worker],
+            )
+          ).rows[0].n,
+        );
+        if (busy >= fleet.slots) return { job: null };
+      }
+
       await db.query(
         "UPDATE executions SET status='FAILED',result=$1,finished_at=now(),lease_token=NULL WHERE status='RUNNING' AND lease_expires_at<now()",
         [
@@ -691,9 +721,14 @@ export async function createApp(c: Config) {
       ).rows[0];
       if (!e) return { job: null };
       const token = id();
+      if (fleet)
+        await db.query(
+          "UPDATE worker_hosts SET idle_since=now() WHERE name=$1",
+          [worker],
+        );
       await db.query(
-        "UPDATE executions SET status='RUNNING',attempt=attempt+1,lease_token=$2,lease_expires_at=now()+interval '90 seconds' WHERE id=$1",
-        [e.id, token],
+        "UPDATE executions SET status='RUNNING',attempt=attempt+1,lease_token=$2,lease_expires_at=now()+interval '90 seconds',worker_name=$3 WHERE id=$1",
+        [e.id, token, fleet ? worker : null],
       );
       const info = (
         await db.query(

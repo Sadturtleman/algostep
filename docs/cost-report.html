@@ -2,42 +2,70 @@
 <html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Algostep 월 비용 시뮬레이터</title>
 <style>body{margin:0;background:#f6f7fb;color:#18213a;font:15px/1.6 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:36px 24px}h1{font-size:28px;margin:8px 0}h2{font-size:19px;margin-top:32px}p{max-width:900px;color:#52617a}.label{font-size:12px;letter-spacing:.1em;color:#3159dd}.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}label{display:flex;flex-direction:column;gap:5px}input,select{font:inherit;padding:9px;border:1px solid #cad1df;border-radius:6px;background:white;color:inherit}.metrics{display:flex;gap:48px;flex-wrap:wrap;margin:28px 0}.metrics strong{display:block;font-size:28px}svg{width:100%;height:300px}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:right;padding:12px 9px;border-bottom:1px solid #dae0eb}th:first-child,td:first-child{text-align:left}.scroll{overflow-x:auto}small{color:#63708a}a{color:#3159dd}.legend span{margin-right:24px}.server{color:#3159dd}.ai{color:#916332}.notice{padding:14px 0;border-top:1px solid #cad1df;border-bottom:1px solid #cad1df}button{font:inherit;padding:8px 14px;border:1px solid #cad1df;background:white;border-radius:6px}@media(max-width:600px){main{padding:20px 14px}h1{font-size:23px}.metrics{gap:20px}.metrics strong{font-size:23px}th,td{padding:8px;font-size:13px}}</style>
 <main><div class="label">ALGOSTEP · 비용 계획 · 2026-09-19</div><h1>사용량에 따른 월 서버비와 Gemini 비용</h1>
-<p class="notice"><b>예상 비용 · 아직 배포/실청구 데이터 아님.</b> 비교 기준은 미국 Iowa(us-central1), 월 730시간, N2 2vCPU·8GiB 워커 1대/실행 슬롯 2개다. 저장소 Terraform의 기본 리전인 서울 견적과는 다르다. 무료 한도·약정·크레딧·세금은 제외했다.</p>
-<div class="controls"><label>월 코드 실행 수<input id="runs" type="number" min="0" max="1000000" step="1000" value="10000"></label><label>실행 대비 리뷰 비율 (%)<input id="ratio" type="number" min="0" max="100" value="10"></label><label>리뷰 평균 입력 토큰<input id="inputTokens" type="number" min="1" max="200000" value="4000"></label><label>리뷰 출력+추론 토큰<input id="outputTokens" type="number" min="1" max="8192" value="2000"></label><label>환산 가정 (원/USD)<input id="fx" type="number" min="1" value="1400"></label><label>Gemini 요금 시점<select id="rates"><option value="1">2026년 말까지</option><option value="2">2027년 1월부터</option></select></label></div>
+<p class="notice"><b>예상 비용 · 아직 배포/실청구 데이터 아님.</b> 미국 Iowa(us-central1), N2 2vCPU·8GiB 워커 최대 2대·호스트당 2슬롯, Supabase Free 기준이다. 필요할 때 시작하고 15분 유휴 후 종료한다. 기본 가정은 두 대를 합쳐 하루 2시간(월 60시간) 가동이다. 무료 한도·약정·크레딧·세금은 제외했다.</p>
+<div class="controls"><label>합산 월 가동 시간 최소 가정<input id="hours" type="number" min="0" max="1440" value="60"></label><label>월 코드 실행 수<input id="runs" type="number" min="0" max="1000000" step="1000" value="10000"></label><label>실행 대비 리뷰 비율 (%)<input id="ratio" type="number" min="0" max="100" value="10"></label><label>리뷰 평균 입력 토큰<input id="inputTokens" type="number" min="1" max="200000" value="4000"></label><label>리뷰 출력+추론 토큰<input id="outputTokens" type="number" min="1" max="8192" value="2000"></label><label>환산 가정 (원/USD)<input id="fx" type="number" min="1" value="1400"></label><label>Gemini 요금 시점<select id="rates"><option value="1">2026년 말까지</option><option value="2">2027년 1월부터</option></select></label></div>
 <div class="metrics" aria-live="polite"><div>서버·스토리지·전송<strong id="server"></strong></div><div>Gemini 리뷰<strong id="gemini"></strong></div><div>합계 / 원화 참고<strong id="total"></strong><small id="krw"></small></div></div>
 <h2>월 코드 실행 횟수별 예상 비용</h2><div class="legend"><span class="server">● 서버·스토리지·전송</span><span class="ai">● Gemini 리뷰 API</span></div><svg id="chart" role="img" aria-label="월 코드 실행 횟수별 예상 월 비용 누적 막대 그래프"></svg>
-<div class="scroll"><table><thead><tr><th>월 실행 수</th><th>리뷰 수</th><th>서버 (USD)</th><th>Gemini (USD)</th><th>합계 (USD)</th><th>원화 환산</th></tr></thead><tbody id="rows"></tbody></table></div><p><small>가로축: 월 코드 실행 수(회). 세로축: 월 비용(USD). 표와 그래프는 같은 계산식을 사용한다. 현재 입력과 비교 시나리오가 함께 표시된다.</small></p><button id="csv">현재 표 CSV 다운로드</button>
+<div class="scroll"><table><thead><tr><th>월 실행 수</th><th>합산 시간</th><th>리뷰 수</th><th>서버 (USD)</th><th>Gemini (USD)</th><th>합계 (USD)</th><th>원화 환산</th></tr></thead><tbody id="rows"></tbody></table></div><p><small>가로축: 월 코드 실행 수(회). 세로축: 월 비용(USD). 표와 그래프는 같은 계산식을 사용한다. 현재 입력과 비교 시나리오가 함께 표시된다.</small></p><button id="csv">현재 표 CSV 다운로드</button>
 <h2>비용 계산 가정</h2><div class="scroll"><table><thead><tr><th>항목</th><th>단가·산정 기준</th><th>성격</th></tr></thead><tbody>
-<tr><td>N2-standard-2 호스트</td><td>$0.097118/시간 × 730시간 = $70.90</td><td>공식 Iowa 기준 단가</td></tr>
-<tr><td>디스크·IPv4</td><td>60GiB × $0.10 + 730시간 × $0.005 = $9.65</td><td>디스크는 계획 단가, IPv4 공식 단가</td></tr>
-<tr><td>DB / 기타 운영비</td><td>$20 / $3 매월</td><td>선정 전 예산 가정; 실제 SKU 아님</td></tr>
+<tr><td>N2-standard-2 호스트</td><td>$0.097118 × 두 워커 합산 가동 시간</td><td>공식 Iowa 기준 단가</td></tr>
+<tr><td>디스크·IPv4</td><td>30GiB × 2대 × $0.10 + 합산 가동 시간 × $0.005</td><td>디스크는 계획 단가, IPv4 공식 단가</td></tr>
+<tr><td>DB / 기타 운영비</td><td>$0 / $3 매월</td><td>Supabase Free / 기타 운영비 가정</td></tr>
 <tr><td>Cloud Run</td><td>1 vCPU $0.000024/초 + 2GiB $0.0000025/GiB초 + $0.40/백만 요청</td><td>Iowa 요청 기반 단가; 무료 한도 미차감</td></tr>
-<tr><td>Gemini 3.8 Flash</td><td>입력 $0.75, 출력·추론 $3.75 / 백만 토큰</td><td>2026-12-31까지; 2027년 두 배</td></tr>
+<tr><td>Gemini 3.8 Flash</td><td>입력 $0.75, 출력·추론 $3.75 / 백만 토큰</td><td>Vertex 글로벌 표준 요금; 2026년 말까지, 2027년 두 배</td></tr>
 <tr><td>저장·전송</td><td>실행당 압축 추적 0.2MiB, 외부 전송 2MiB</td><td>$0.02/GiB월, $0.12/GiB 계획 단가</td></tr>
 </tbody></table></div>
-<p>일반 요청은 실행당 15건·건당 과금 시간 0.1초, 리뷰 요청은 추가 20초를 가정한다. 워커 2슬롯이 유휴 상태에서 최대 15초마다 확인하는 요청과 분당 유지보수 호출도 포함한다. 유휴 요청을 월 전체로 계산하므로 바쁜 구간은 보수적으로 중복 반영된다. 저장량은 30일 보관이 안정화된 상태를 가정하고 실행당 쓰기 1회·읽기 3회를 포함한다. 네트워크·DB·로그·빌드·백업의 실제 금액은 배포 후 확인해야 한다.</p>
+<p>일반 요청은 실행당 15건·건당 과금 시간 0.1초, 리뷰 요청은 추가 20초, 분당 유지보수 호출은 2초를 가정한다. 워커 2슬롯이 유휴 상태에서 최대 15초마다 확인하는 요청과 분당 유지보수 호출도 포함한다. 유휴 폴링은 입력한 합산 가동 시간에, 예약 호출은 월 전체에 반영한다. 입력한 가동 시간을 최소값으로 사용하고, 실행량이 크면 평균 슬롯 점유율 70% 가정으로 필요한 가동 시간을 늘린다. 월 1,440시간을 넘으면 두 호스트의 용량 초과다. 실제 유휴 구간과 트래픽 집중에 따라 더 많은 시간이 들 수 있다. 꺼진 VM도 디스크는 계속 과금되며, 이미지 저장·빌드 비용은 기타 예산과 실제 청구에서 확인한다. Supabase는 Sydney에 생성되어 리전 간 DB 통신 비용과 지연이 추가될 수 있다. 저장량은 30일 보관이 안정화된 상태를 가정하고 실행당 쓰기 1회·읽기 3회를 포함한다. 네트워크·DB·로그·빌드·백업의 실제 금액은 배포 후 확인해야 한다.</p>
 <p id="capacity"></p><p>학생의 월 무료 리뷰 3회도 운영자는 Gemini 사용료를 낸다. 할인, 무료 한도, 환율은 계정과 시점에 따라 달라진다. 기본 1,400원은 비교용 가정이며 현재 시장 환율이 아니다. 사용량이 같아도 입력 길이·추론 토큰·재시도·실패 응답에 따라 실제 비용은 달라진다. API 사용량 집계는 청구서와 대조해야 한다.</p>
-<h2>확인 출처</h2><p><a href="https://ai.google.dev/gemini-api/docs/pricing">Gemini 공식 요금</a> · <a href="https://cloud.google.com/run/pricing">Cloud Run</a> · <a href="https://cloud.google.com/products/compute/pricing/general-purpose">Compute Engine</a> · <a href="https://cloud.google.com/vpc/pricing">IPv4·전송</a> · <a href="https://cloud.google.com/storage/pricing">스토리지</a> · <a href="https://cloud.google.com/compute/disks-image-pricing">디스크</a></p>
+<h2>확인 출처</h2><p><a href="https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing">Gemini 공식 요금</a> · <a href="https://cloud.google.com/run/pricing">Cloud Run</a> · <a href="https://cloud.google.com/products/compute/pricing/general-purpose">Compute Engine</a> · <a href="https://cloud.google.com/vpc/pricing">IPv4·전송</a> · <a href="https://cloud.google.com/storage/pricing">스토리지</a> · <a href="https://cloud.google.com/compute/disks-image-pricing">디스크</a></p>
 </main><script type="module">
-const assumptions={hours:730,vmHourly:0.097118,diskGiB:60,diskRate:0.10,ipv4Hourly:0.005,dbAllowance:20,otherAllowance:3,slots:2,pollSeconds:15,executionSeconds:30,requestsPerExecution:15,requestSeconds:0.1,reviewSeconds:20,reviewRatio:0.1,inputTokens:4000,outputTokens:1500,thinkingTokens:500,inputRate:0.75,outputRate:3.75,traceMiB:0.2,egressMiB:2,storageRate:0.02,egressRate:0.12,usdKrw:1400};
-function estimate(executions,a=assumptions){
- const reviews=Math.round(executions*a.reviewRatio);
- const fixed=a.hours*(a.vmHourly+a.ipv4Hourly)+a.diskGiB*a.diskRate+a.dbAllowance+a.otherAllowance;
- const idleRequests=a.hours*3600*a.slots/a.pollSeconds+a.hours*60;
- const requests=idleRequests+executions*a.requestsPerExecution+reviews;
- const seconds=requests*a.requestSeconds+reviews*a.reviewSeconds;
- const cloudRun=seconds*(0.000024+2*0.0000025)+requests*0.40/1e6;
- const storage=executions*a.traceMiB/1024*a.storageRate+executions*(0.005/1000+3*0.0004/1000);
- const network=executions*a.egressMiB/1024*a.egressRate;
- const gemini=reviews*(a.inputTokens*a.inputRate+(a.outputTokens+a.thinkingTokens)*a.outputRate)/1e6;
- return {executions,reviews,fixed,cloudRun,storage,network,server:fixed+cloudRun+storage+network,gemini,total:fixed+cloudRun+storage+network+gemini,slotUtilization:executions*a.executionSeconds/(a.slots*a.hours*3600)};
+const assumptions={hours:60,calendarHours:720,vmHourly:0.097118,diskGiB:60,diskRate:0.10,ipv4Hourly:0.005,dbAllowance:0,otherAllowance:3,slots:2,pollSeconds:15,executionSeconds:30,requestsPerExecution:15,requestSeconds:0.1,maintenanceSeconds:2,reviewSeconds:20,reviewRatio:0.1,inputTokens:4000,outputTokens:1500,thinkingTokens:500,inputRate:0.75,outputRate:3.75,traceMiB:0.2,egressMiB:2,storageRate:0.02,egressRate:0.12,usdKrw:1400};
+function estimate(executions, a = assumptions) {
+  const reviews = Math.round(executions * a.reviewRatio);
+  // Keep larger scenarios physically possible; leave 30% for boot/idle/bursts.
+  const workerHours = Math.max(a.hours, executions * a.executionSeconds / (a.slots * 3600 * 0.7));
+  const fixed =
+    workerHours * (a.vmHourly + a.ipv4Hourly) +
+    a.diskGiB * a.diskRate +
+    a.dbAllowance +
+    a.otherAllowance;
+  const idleRequests =
+    (workerHours * 3600 * a.slots) / a.pollSeconds + a.calendarHours * 60;
+  const requests = idleRequests + executions * a.requestsPerExecution + reviews;
+  const seconds = requests * a.requestSeconds + reviews * a.reviewSeconds + a.calendarHours * 60 * (a.maintenanceSeconds - a.requestSeconds);
+  const cloudRun =
+    seconds * (0.000024 + 2 * 0.0000025) + (requests * 0.4) / 1e6;
+  const storage =
+    ((executions * a.traceMiB) / 1024) * a.storageRate +
+    executions * (0.005 / 1000 + (3 * 0.0004) / 1000);
+  const network = ((executions * a.egressMiB) / 1024) * a.egressRate;
+  const gemini =
+    (reviews *
+      (a.inputTokens * a.inputRate +
+        (a.outputTokens + a.thinkingTokens) * a.outputRate)) /
+    1e6;
+  return {
+    executions,
+    workerHours,
+    capacityExceeded: workerHours > 2 * a.calendarHours,
+    reviews,
+    fixed,
+    cloudRun,
+    storage,
+    network,
+    server: fixed + cloudRun + storage + network,
+    gemini,
+    total: fixed + cloudRun + storage + network + gemini,
+    slotUtilization:
+      workerHours ? (executions * a.executionSeconds) / (a.slots * workerHours * 3600) : 0,
+  };
 }
 const scenarios=[0,1000,10000,50000,100000].map(n=>estimate(n));
 
 const $=id=>document.getElementById(id),money=n=>'$'+n.toFixed(2),num=n=>Math.round(n).toLocaleString('ko-KR');let visible=[];
 function draw(){const a={...assumptions},count=Math.max(0,Math.min(1000000,Number($('runs').value)||0));a.reviewRatio=Math.max(0,Math.min(100,Number($('ratio').value)||0))/100;a.inputTokens=Math.max(1,Math.min(200000,Number($('inputTokens').value)||1));a.outputTokens=Math.max(1,Math.min(8192,Number($('outputTokens').value)||1));a.thinkingTokens=0;a.usdKrw=Math.max(1,Number($('fx').value)||1400);a.inputRate*=Number($('rates').value);a.outputRate*=Number($('rates').value);
-const current=estimate(count,a);$('server').textContent=money(current.server);$('gemini').textContent=money(current.gemini);$('total').textContent=money(current.total);$('krw').textContent='약 '+num(current.total*a.usdKrw)+'원 / 월 (환산 가정)';visible=[...new Set([0,1000,10000,50000,100000,count])].sort((a,b)=>a-b).map(n=>estimate(n,a));$('rows').innerHTML=visible.map(r=>`<tr><td>${num(r.executions)}</td><td>${num(r.reviews)}</td><td>${money(r.server)}</td><td>${money(r.gemini)}</td><td>${money(r.total)}</td><td>${num(r.total*a.usdKrw)}원</td></tr>`).join('');
-$('capacity').textContent=`실행당 VM 점유 30초 가정 시 현재 월평균 슬롯 점유율은 ${(current.slotUtilization*100).toFixed(1)}%다. ${current.slotUtilization>0.7?'현재 단일 호스트의 여유가 부족할 수 있다. 증설 비용은 이 계산에 포함되지 않았다.':'피크 트래픽과 두 VM의 CPU 경합은 평균값만으로 보장할 수 없다.'} 전역 실행 상한 10과 현재 호스트 슬롯 2는 별개다.`;
+a.hours=Math.max(0,Math.min(1440,Number($('hours').value)||0));const current=estimate(count,a);$('server').textContent=money(current.server);$('gemini').textContent=money(current.gemini);$('total').textContent=money(current.total);$('krw').textContent='약 '+num(current.total*a.usdKrw)+'원 / 월 (환산 가정)';visible=[...new Set([0,1000,10000,50000,100000,count])].sort((a,b)=>a-b).map(n=>estimate(n,a));$('rows').innerHTML=visible.map(r=>`<tr><td>${num(r.executions)}</td><td>${r.workerHours.toFixed(1)}h${r.capacityExceeded?" · 용량 초과":""}</td><td>${num(r.reviews)}</td><td>${money(r.server)}</td><td>${money(r.gemini)}</td><td>${money(r.total)}</td><td>${num(r.total*a.usdKrw)}원</td></tr>`).join('');
+$('capacity').textContent=`실행당 VM 점유 30초 가정 시 추정 합산 가동 시간은 ${current.workerHours.toFixed(1)}시간이며 슬롯 점유율은 ${(Number.isFinite(current.slotUtilization)?current.slotUtilization*100:0).toFixed(1)}%다. ${current.capacityExceeded?'이 실행량은 두 워커의 월 가동 한도를 초과한다. 이 구성을 증설해야 하며 표의 금액만으로 처리할 수 없다.':'피크 트래픽과 두 VM의 CPU 경합은 평균값만으로 보장할 수 없다.'} 전역 상한은 10이지만 이 구성의 실제 동시 실행은 최대 4개다.`;
 const svg=$('chart'),w=svg.clientWidth,h=300,left=58,right=12,top=28,bottom=48,pw=w-left-right,ph=h-top-bottom,max=Math.ceil(Math.max(...visible.map(r=>r.total))/50)*50;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);let parts=['<title>실행 횟수별 월 예상 비용 (USD)</title>'];for(let i=0;i<=4;i++){const val=max*i/4,y=h-bottom-ph*i/4;parts.push(`<line x1="${left}" x2="${w-right}" y1="${y}" y2="${y}" stroke="#dbe1eb"/><text x="${left-8}" y="${y+4}" text-anchor="end" fill="#63708a" font-size="11">$${val.toFixed(0)}</text>`);}visible.forEach((r,i)=>{const step=pw/visible.length,bw=Math.min(55,step*.6),x=left+step*(i+.5)-bw/2,sh=r.server/max*ph,ah=r.gemini/max*ph;parts.push(`<rect x="${x}" y="${h-bottom-sh}" width="${bw}" height="${sh}" fill="#3159dd"><title>서버 ${money(r.server)}</title></rect><rect x="${x}" y="${h-bottom-sh-ah}" width="${bw}" height="${ah}" fill="#916332"><title>Gemini ${money(r.gemini)}</title></rect><text x="${x+bw/2}" y="${h-bottom+20}" text-anchor="middle" font-size="11" fill="#52617a">${r.executions>=1000?r.executions/1000+'k':r.executions}</text>`);});parts.push(`<text x="${left}" y="14" font-size="11" fill="#52617a">월 USD</text><text x="${w/2}" y="${h-4}" text-anchor="middle" font-size="11" fill="#52617a">월 코드 실행 수 (회)</text>`);svg.innerHTML=parts.join('');}
-for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',draw);window.addEventListener('resize',draw);$('csv').onclick=()=>{const csv='월 실행 수,리뷰 수,서버 USD,Gemini USD,합계 USD\n'+visible.map(r=>[r.executions,r.reviews,r.server.toFixed(2),r.gemini.toFixed(2),r.total.toFixed(2)].join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download='algostep-cost-estimate.csv';a.click();URL.revokeObjectURL(a.href);};draw();
+for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',draw);window.addEventListener('resize',draw);$('csv').onclick=()=>{const csv='월 실행 수,합산 가동 시간,리뷰 수,서버 USD,Gemini USD,합계 USD\n'+visible.map(r=>[r.executions,r.workerHours.toFixed(1),r.reviews,r.server.toFixed(2),r.gemini.toFixed(2),r.total.toFixed(2)].join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download='algostep-cost-estimate.csv';a.click();URL.revokeObjectURL(a.href);};draw();
 </script></html>

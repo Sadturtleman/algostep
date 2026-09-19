@@ -1,16 +1,18 @@
 export const assumptions = {
-  hours: 730,
+  hours: 60, // Aggregate worker-hours/month, including cold start and idle grace.
+  calendarHours: 720,
   vmHourly: 0.097118,
   diskGiB: 60,
   diskRate: 0.1,
   ipv4Hourly: 0.005,
-  dbAllowance: 20,
+  dbAllowance: 0, // Supabase Free within its quota.
   otherAllowance: 3,
   slots: 2,
   pollSeconds: 15,
   executionSeconds: 30,
   requestsPerExecution: 15,
   requestSeconds: 0.1,
+  maintenanceSeconds: 2,
   reviewSeconds: 20,
   reviewRatio: 0.1,
   inputTokens: 4000,
@@ -26,15 +28,23 @@ export const assumptions = {
 };
 export function estimate(executions, a = assumptions) {
   const reviews = Math.round(executions * a.reviewRatio);
+  // Keep larger scenarios physically possible; leave 30% for boot/idle/bursts.
+  const workerHours = Math.max(
+    a.hours,
+    (executions * a.executionSeconds) / (a.slots * 3600 * 0.7),
+  );
   const fixed =
-    a.hours * (a.vmHourly + a.ipv4Hourly) +
+    workerHours * (a.vmHourly + a.ipv4Hourly) +
     a.diskGiB * a.diskRate +
     a.dbAllowance +
     a.otherAllowance;
   const idleRequests =
-    (a.hours * 3600 * a.slots) / a.pollSeconds + a.hours * 60;
+    (workerHours * 3600 * a.slots) / a.pollSeconds + a.calendarHours * 60;
   const requests = idleRequests + executions * a.requestsPerExecution + reviews;
-  const seconds = requests * a.requestSeconds + reviews * a.reviewSeconds;
+  const seconds =
+    requests * a.requestSeconds +
+    reviews * a.reviewSeconds +
+    a.calendarHours * 60 * (a.maintenanceSeconds - a.requestSeconds);
   const cloudRun =
     seconds * (0.000024 + 2 * 0.0000025) + (requests * 0.4) / 1e6;
   const storage =
@@ -48,6 +58,8 @@ export function estimate(executions, a = assumptions) {
     1e6;
   return {
     executions,
+    workerHours,
+    capacityExceeded: workerHours > 2 * a.calendarHours,
     reviews,
     fixed,
     cloudRun,
@@ -56,8 +68,9 @@ export function estimate(executions, a = assumptions) {
     server: fixed + cloudRun + storage + network,
     gemini,
     total: fixed + cloudRun + storage + network + gemini,
-    slotUtilization:
-      (executions * a.executionSeconds) / (a.slots * a.hours * 3600),
+    slotUtilization: workerHours
+      ? (executions * a.executionSeconds) / (a.slots * workerHours * 3600)
+      : 0,
   };
 }
 export const scenarios = [0, 1000, 10000, 50000, 100000].map((n) =>
