@@ -55,4 +55,9 @@ GitHub 업로드와 CI 통과를 운영 출시로 간주하지 않는다. 최신
 - 워커 자동 기동/확장/종료 배정 차단/불확실한 종료 재시도, 호스트별 2슬롯, PostgreSQL 전용 스키마를 검증했다.
 - GCP Cloud Build `033ec262-dbaf-4d8a-a5ab-6f9184686b50` 성공. Supabase 세션 초기화 개선을 포함한 후속 이미지 빌드는 별도 진행.
 - Gemini Vertex Express `gemini-3.8-flash` 실제 최소 호출 HTTP 200, STOP. 키 값은 출력하거나 파일에 기록하지 않았다.
-- 실제 워커 이미지는 일회성 N2에서 커널 빌드와 VM 검증 진행 중. Cloud Run 로그인·Supabase 실제 연결·온디맨드 클라우드 사이클은 아직 검증 완료가 아니다.
+- 운영 이미지 `algostep-worker-20260919`를 실제 GCP N2에서 빌드했다. Linux 6.1.188 / Firecracker 1.17.0에서 59개 VM 검사와 권장 프로그램 공개 테스트 111개가 통과했다. 검증 표시와 해시를 게스트 속성으로 회수한 후 이미지를 생성했다.
+- 커널 SHA256: `1d1b7f86cd83b7d293a4449f618ff6092e5cbe5831fc3ec783126bfdb4bf1f2f`, rootfs SHA256: `8791c44332bcf3eb5a580c5185eff9dc1ca596f7daa7056d25d2f45bedc86874`.
+- 운영 워커 2대는 Terraform으로 생성 후 `TERMINATED` 상태를 확인했다. 임시 빌더 VM/디스크를 삭제하고 소스 버킷 읽기 권한을 회수했다.
+- Supabase 공식 CA를 사용한 실제 TLS 접속, `algostep` 스키마 마이그레이션 버전 4 및 테이블 19개를 확인했다. Gemini 키는 승인된 Secret Manager에 저장했다.
+- 로컬 최종 검사 28개 통과, 실제 PostgreSQL용 검사 1개는 CI에서 실행한다. 타입 검사와 전체 빌드 통과. Compute 전송 오류의 인증 헤더가 앱 로그로 전달되지 않는 회귀 검사 포함.
+- Cloud Run 로그인·온디맨드 클라우드 사이클은 아직 검증 완료가 아니다. 앞선 절의 외부 설정 대기는 이 후속 기록으로 갱신한다.

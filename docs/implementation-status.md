@@ -19,7 +19,7 @@
 - Python/C++은 seccomp로 자식 프로세스·스레드 생성을 차단한다. Java 21은 별도 진입점의 학습 정책으로 사용자 Thread/ThreadGroup과 프로세스 생성을 제한하고 JVM 내부 스레드는 유지한다. VM 격리가 보안 경계이며 언어 정책 자체를 보안 샌드박스로 간주하지 않는다.
 - 테스트 및 추적 실행 전 작업 디렉터리를 복원해 이전 실행의 파일 변경·심볼릭 링크 영향을 제거한다. 운영 워커 시작 시 커널/rootfs SHA-256과 HTTPS API를 요구한다.
 - 버전별 DB 마이그레이션, GCS gzip 추적 저장·체크섬·삭제 outbox, 관리자 콘텐츠 검증/게시 CLI·감사 이벤트, 운영 상태 API와 유지보수 작업.
-- Cloud Run 통합 이미지와 GCP Terraform(Cloud Run/GCS/Secret 참조/OIDC 스케줄러). 로컬 Terraform validate 통과. 실제 클라우드 리소스는 생성하지 않았다.
+- Cloud Run 통합 이미지와 GCP Terraform(Cloud Run/GCS/Secret 참조/OIDC 스케줄러). 운영 워커 2대와 전용 네트워크·IAM 생성 완료. Supabase 실제 TLS 연결과 마이그레이션 검증 완료. 웹/API 배포 및 종단 검증 상태는 배포 문서를 따른다.
 
 ## 현재 지원 경계
 

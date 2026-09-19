@@ -8,9 +8,9 @@ Gemini Developer API의 `gemini-3.8-flash`를 기본 리뷰 모델로 연결했�
 
 GCP `algostep` 프로젝트(90062080967)의 청구 연결·CLI 인증·필수 API를 확인했다. Artifact Registry `us-central1/algostep`를 생성했고 Cloud Build `033ec262-dbaf-4d8a-a5ab-6f9184686b50`에서 서버·웹 이미지 빌드가 성공했다. 운영 서비스는 아직 공개 검증 전이다. Supabase 프로젝트 `qsrxfuybohxdoqrxrsko`와 세션 풀러를 확인했으며 DB Secret 연결, Google OAuth, 실제 워커 이미지 검증을 진행 중이다. 다른 프로젝트의 자원을 사용하지 않는다.
 
-현재 계정의 API 키는 `aiplatform.googleapis.com` 제한 키이므로 `GEMINI_BACKEND=vertex-express`를 사용한다. 기존 키를 메모리에서만 사용한 실제 `gemini-3.8-flash` 호출이 HTTP 200/STOP으로 통과했다(입력 7·출력 1토큰). Secret Manager 연결은 별도 승인 대기다. Developer API도 별도 설정으로 지원한다.
+현재 계정의 API 키는 `aiplatform.googleapis.com` 제한 키이므로 `GEMINI_BACKEND=vertex-express`를 사용한다. 기존 키를 메모리에서만 사용한 실제 `gemini-3.8-flash` 호출이 HTTP 200/STOP으로 통과했다(입력 7·출력 1토큰). 승인 후 Secret Manager 저장을 완료했다. Developer API도 별도 설정으로 지원한다.
 
-OAuth 앱 `Algostep`와 웹 클라이언트를 생성했다. 실제 서비스 URL 확인 후 허용 출처를 등록해야 한다. 세션·워커·운영 인증 토큰 3개는 Secret Manager에 생성했고, Supabase DB 비밀번호 입력 완료를 기다리고 있다. 아직 Cloud Run 서비스가 공개 배포됐다고 간주하지 않는다.
+OAuth 앱 `Algostep`와 웹 클라이언트를 생성했다. 실제 서비스 URL 확인 후 허용 출처를 등록해야 한다. 세션·워커·운영 인증 토큰과 DB 연결 문자열은 Secret Manager에 저장했다. Supabase TLS 연결과 마이그레이션을 확인했고, 검증된 운영 이미지로 워커 2대를 생성해 중지 상태로 준비했다. 아직 Cloud Run 서비스가 공개 배포됐다고 간주하지 않는다.
 
 1. 배포할 프로젝트와 지역을 정하고 결제 연결 및 API 권한을 확인한다.
 2. PostgreSQL, Google OAuth, Secret Manager의 DATABASE_URL/SESSION_SECRET/RUNNER_TOKEN/OPERATIONS_TOKEN/GEMINI_API_KEY를 준비한다.

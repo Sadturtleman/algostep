@@ -48,21 +48,31 @@ export class GceFleet implements ComputeFleet {
     return `https://compute.googleapis.com/compute/v1/projects/${this.config.project}/zones/${this.config.zone}/instances/${name}`;
   }
   async status(name: string) {
-    return (
-      await this.auth.request<{ status: string }>({
-        url: this.url(name),
-        timeout: 10000,
-      })
-    ).data.status;
+    const url = this.url(name);
+    try {
+      return (
+        await this.auth.request<{ status: string }>({
+          url,
+          timeout: 10000,
+        })
+      ).data.status;
+    } catch {
+      throw new Error("WORKER_STATUS_REQUEST_FAILED");
+    }
   }
   async action(name: string, action: "START" | "STOP", requestId: string) {
-    const response = await this.auth.request<{ error?: unknown }>({
-      url: this.url(name) + "/" + action.toLowerCase(),
-      method: "POST",
-      params: { requestId },
-      timeout: 10000,
-    });
-    if (response.data.error) throw new Error("WORKER_POWER_OPERATION_FAILED");
+    const url = this.url(name) + "/" + action.toLowerCase();
+    try {
+      const response = await this.auth.request<{ error?: unknown }>({
+        url,
+        method: "POST",
+        params: { requestId },
+        timeout: 10000,
+      });
+      if (response.data.error) throw new Error("WORKER_POWER_OPERATION_FAILED");
+    } catch {
+      throw new Error("WORKER_POWER_REQUEST_FAILED");
+    }
   }
 }
 // Called by the minute scheduler. A durable action id makes uncertain Compute

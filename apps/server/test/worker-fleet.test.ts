@@ -4,10 +4,37 @@ import { randomUUID as id } from "node:crypto";
 import { database } from "../src/db.js";
 import { seed } from "../src/content.js";
 import {
+  GceFleet,
   reconcileFleet,
   type ComputeFleet,
   type FleetConfig,
 } from "../src/worker-fleet.js";
+test("Compute transport errors never carry credentials into application logs", async () => {
+  const fleet = new GceFleet({
+    project: "algostep",
+    zone: "us-central1-a",
+    names: ["worker-1", "worker-2"],
+    slots: 2,
+    idleSeconds: 900,
+  });
+  (fleet as any).auth = {
+    request: async () => {
+      throw Object.assign(new Error("transport-secret"), {
+        config: { headers: { Authorization: "Bearer transport-secret" } },
+      });
+    },
+  };
+  for (const request of [
+    () => fleet.status("worker-1"),
+    () => fleet.action("worker-1", "START", id()),
+  ])
+    await assert.rejects(request, (error) => {
+      assert.ok(error instanceof Error);
+      assert.ok(!JSON.stringify(error).includes("transport-secret"));
+      assert.ok(!error.message.includes("transport-secret"));
+      return true;
+    });
+});
 const config: FleetConfig = {
   project: "algostep",
   zone: "us-central1-a",
