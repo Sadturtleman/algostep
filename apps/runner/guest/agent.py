@@ -89,4 +89,10 @@ with connection:
     job=json.loads(line)
     try:result=execute(job);connection.sendall(json.dumps(result,ensure_ascii=True,allow_nan=False).encode()+b'\n')
     except Exception:connection.sendall(b'{"error":"GUEST_AGENT_FAILED"}\n')
+    # PID 1 exiting immediately can reset vsock before Firecracker delivers its
+    # buffered response. Keep the guest alive until the host consumes and closes.
+    connection.settimeout(5)
+    try:
+        while connection.recv(1024):pass
+    except OSError:pass
 server.close()

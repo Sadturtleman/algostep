@@ -65,6 +65,8 @@ export async function runIsolated(job: Job, signal?: AbortSignal) {
     );
     const uid = Number(process.env.JAILER_UID ?? 1001),
       gid = Number(process.env.JAILER_GID ?? 1001);
+    if (!Number.isSafeInteger(uid) || uid <= 0 || !Number.isSafeInteger(gid) || gid <= 0)
+      throw new Error("JAILER_NON_ROOT_ID_REQUIRED");
     await chown(root, uid, gid);
     for (const name of ["vmlinux", ...(sharedRootfs?[]:["rootfs.ext4"]), "config.json"])
       await chown(join(root, name), uid, gid);
