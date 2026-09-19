@@ -1,4 +1,6 @@
 import { QuizPanel } from "./QuizPanel.js";
+import { AdminDashboard } from "./AdminDashboard.js";
+import { SupportPanel } from "./SupportPanel.js";
 import { conceptUses } from "./concept-uses.js";
 import {
   groupLearningTopics,
@@ -72,6 +74,36 @@ function App() {
     runKey = useRef<string | null>(null),
     reviewKey = useRef<string | null>(null);
   const shownExecutionErrors = useRef(new Set<string>());
+  useEffect(() => {
+    if (!user) return;
+    let trackedDay = "";
+    let inFlight = false;
+    const track = () => {
+      const day = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+      if (
+        document.visibilityState === "visible" &&
+        day !== trackedDay &&
+        !inFlight
+      ) {
+        inFlight = true;
+        void post("/analytics/visit", {})
+          .then(() => {
+            trackedDay = day;
+          })
+          .catch(() => {})
+          .finally(() => {
+            inFlight = false;
+          });
+      }
+    };
+    track();
+    const timer = setInterval(track, 60000);
+    document.addEventListener("visibilitychange", track);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", track);
+    };
+  }, [user?.id]);
   const fail = (e: any) =>
     setError(
       e instanceof ApiError
@@ -462,6 +494,20 @@ function App() {
               </button>
             </>
           )}
+          <button
+            className={page === "support" ? "nav active" : "nav"}
+            onClick={() => void navigate("support")}
+          >
+            문의하기
+          </button>
+          {user.isAdmin && !nativeAndroid && (
+            <button
+              className={page === "admin" ? "nav active" : "nav"}
+              onClick={() => void navigate("admin")}
+            >
+              관리자
+            </button>
+          )}
         </nav>
       )}
       <div className="header-right">
@@ -710,6 +756,10 @@ function App() {
     <>
       {header}
       <main>
+        {actualPage === "admin" && user.isAdmin && !nativeAndroid && (
+          <AdminDashboard />
+        )}
+        {actualPage === "support" && <SupportPanel />}
         {notice && (
           <div className="notice" role="status">
             {notice}

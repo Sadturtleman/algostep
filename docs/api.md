@@ -13,7 +13,21 @@
 
 `/health`와 `/config`를 제외한 학습·풀이 API는 로그인이 필요하다.
 
-## 콘텐츠
+## 관리자·비즈니스 지표·문의
+
+- `GET /me`, `POST /auth/google` 사용자 응답에 `isAdmin` 포함. 권한은 서버의 `ADMIN_EMAILS`와 검증된 Google 이메일로 판정한다.
+- `POST /analytics/visit`: KST 날짜별 로그인 사용자 방문 등록. 중복 전송 허용, 같은 계정/날짜 한 건만 저장.
+- `GET /admin/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD&grain=day|week|month`: 최대 366일, 종료일 포함. 접속/사용자/비용/매출/이벤트/LLM 사용량과 기간별 시계열.
+- `GET /admin/users?page=1`, `/admin/events?from=...&to=...&type=...&page=1`, `/admin/costs?from=...&to=...&page=1`: 페이지와 hasMore, 이벤트 타입 필터.
+- `POST /admin/costs/import`: `{entries:[{sourceKey,usageDate,service,currency,amount,source}]}`. 최대 500행, KRW/USD, 원본 키별 upsert. `POST /operations/costs/import`는 동일 계약이며 별도 운영 Bearer 토큰만 허용한다.
+- `GET /support?page=1&status=OPEN|IN_PROGRESS|RESOLVED`: 본인 문의만 조회.
+- `POST /support`: `{requestKey,category,subject,body}`. category=question|bug|billing|other. 제목 120자, 본문 5000자, 계정별 24시간 10건.
+- `GET /admin/inquiries?page=1&status=...`: 관리자 전체 문의 조회.
+- `PATCH /admin/inquiries/:id`: `{revision,status,reply}`. 답변 5000자, 완료는 답변 필수, 충돌 시 409.
+
+모든 `/admin/*`는 관리자 세션을 요구하며 권한 없는 계정은 403이다. 변경은 동일 출처/CSRF 검증을 적용한다. Android 세션은 방문과 본인 문의를 사용할 수 있지만 관리자 API에는 접근할 수 없다. [상세 운영 정의](admin-dashboard.md).
+
+## 학습 콘텐츠
 
 - `GET /topics`: 학습 설명과 퀴즈 선택지. 정답과 해설은 응시 전 제외.
 - `POST /quiz/:topic`: `{answer, requestKey}`. 선택지 인덱스는 0부터 시작. 원래 응답을 재전달하며 중복 저장하지 않는다.
