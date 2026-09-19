@@ -5,6 +5,60 @@ async function authenticate(page: any) {
     data: { credential: "integration-test-token" },
   });
 }
+
+test("expanded quizzes and movable diagrams retain positions across steps", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /너비 우선 탐색/ }).click();
+  await expect(page.getByText(/문항 1 \/ 3/)).toBeVisible();
+  await page.getByRole("button", { name: "다음 문항", exact: true }).click();
+  await expect(page.getByText(/0의 이웃이/)).toBeVisible();
+  await page.getByRole("button", { name: "1 [0,1,2,3]", exact: true }).click();
+  await page.getByRole("button", { name: "정답 확인", exact: true }).click();
+  await expect(page.getByText("정답이에요!", { exact: true })).toBeVisible();
+  await page.getByLabel("예제 선택", { exact: true }).selectOption("1");
+  const node = page.locator('.diagram-node[data-node-id="0"]').first();
+  await node.scrollIntoViewIfNeeded();
+  const original = await node.getAttribute("transform");
+  const box = await node.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box!.x + box!.width / 2 + 60,
+    box!.y + box!.height / 2 + 30,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  const moved = await node.getAttribute("transform");
+  expect(moved).not.toBe(original);
+  await page.getByRole("button", { name: "다음 단계", exact: true }).click();
+  await expect(node).toHaveAttribute("transform", moved!);
+  await node.focus();
+  await node.press("ArrowRight");
+  expect(await node.getAttribute("transform")).not.toBe(moved);
+  await page.getByRole("button", { name: "배치 초기화", exact: true }).click();
+  await expect(node).toHaveAttribute("transform", original!);
+  await page.getByLabel("예제 선택", { exact: true }).selectOption("2");
+  await expect(page.getByText(/0에서 도달할 수 없는/)).toBeVisible();
+  await page.screenshot({
+    path: "test-results/expanded-graph.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "테마 변경" }).click();
+  await page.screenshot({
+    path: "test-results/expanded-graph-mobile-dark.png",
+    fullPage: true,
+  });
+});
 test("login gate, theme and setup state", async ({ page }) => {
   await page.goto("/");
   await expect(
@@ -266,26 +320,61 @@ test("Android tablet remains learning-only at desktop width", async ({
     page.getByRole("button", { name: "내 기록", exact: true }),
   ).toHaveCount(0);
 });
-test('mobile P0 examples accept input and display sorting and references',async({page})=>{
-  await authenticate(page);await page.setViewportSize({width:390,height:844});await page.goto('/');
-  await page.getByRole('button',{name:/버블 정렬/}).click();
-  await page.getByLabel('예제 값',{exact:true}).fill('3, 1, 2');
-  await page.getByRole('button',{name:'예제 적용 · 처음부터'}).click();
-  const next=page.getByRole('button',{name:'다음 단계',exact:true});
-  for(let i=0;i<8 && await next.isEnabled();i++)await next.click();
-  await expect(page.getByText('정렬 완료',{exact:true})).toBeVisible();
-  await expect(page.locator('.array strong')).toHaveText(['1','2','3']);
-  await page.getByRole('button',{name:'학습 목록',exact:true}).click();
-  await page.getByRole('button',{name:/단일 연결 리스트/}).click();
-  await page.getByRole('button',{name:'다음 단계',exact:true}).click();
-  await expect(page.getByRole('img',{name:'객체 필드와 참조 관계'})).toBeVisible();
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.screenshot({path:'test-results/mobile-linked-list.png',fullPage:true});
-});
-test('unexpected rendering errors provide a full-screen recovery action',async({page})=>{
+test("mobile P0 examples accept input and display sorting and references", async ({
+  page,
+}) => {
   await authenticate(page);
-  await page.route('**/api/topics',route=>route.fulfill({json:{topics:[{id:'bad',title:'Malformed response',category:'test',priority:'P0',body:null}]}}));
-  await page.goto('/');
-  await expect(page.getByRole('heading',{name:'화면을 표시하지 못했어요'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'화면 다시 열기'})).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: /버블 정렬/ }).click();
+  await page.getByLabel("예제 값", { exact: true }).fill("3, 1, 2");
+  await page.getByRole("button", { name: "예제 적용 · 처음부터" }).click();
+  const next = page.getByRole("button", { name: "다음 단계", exact: true });
+  for (let i = 0; i < 8 && (await next.isEnabled()); i++) await next.click();
+  await expect(page.getByText("정렬 완료", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".array-board .diagram-node > text:first-of-type"),
+  ).toHaveText(["1", "2", "3"]);
+  await page.getByRole("button", { name: "학습 목록", exact: true }).click();
+  await page.getByRole("button", { name: /단일 연결 리스트/ }).click();
+  await page.getByRole("button", { name: "다음 단계", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "객체 필드와 참조 관계" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/mobile-linked-list.png",
+    fullPage: true,
+  });
+});
+test("unexpected rendering errors provide a full-screen recovery action", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.route("**/api/topics", (route) =>
+    route.fulfill({
+      json: {
+        topics: [
+          {
+            id: "bad",
+            title: "Malformed response",
+            category: "test",
+            priority: "P0",
+            body: null,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "화면을 표시하지 못했어요" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "화면 다시 열기" }),
+  ).toBeVisible();
 });

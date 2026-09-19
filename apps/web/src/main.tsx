@@ -1,3 +1,4 @@
+import { QuizPanel } from "./QuizPanel.js";
 import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -51,8 +52,6 @@ function App() {
     [mobile, setMobile] = useState(() => nativeAndroid || innerWidth < 850),
     [usage, setUsage] = useState<any>(null),
     [filter, setFilter] = useState(""),
-    [answer, setAnswer] = useState<number | null>(null),
-    [feedback, setFeedback] = useState<any>(null),
     [busy, setBusy] = useState(false),
     [input, setInput] = useState(""),
     [testIndex, setTestIndex] = useState(0),
@@ -701,8 +700,6 @@ function App() {
                   onClick={() => {
                     const t = topics.find((t) => t.id === "binary-search");
                     setTopic(t);
-                    setAnswer(null);
-                    setFeedback(null);
                     setPage("lesson");
                   }}
                 >
@@ -748,8 +745,6 @@ function App() {
                     key={t.id}
                     onClick={() => {
                       setTopic(t);
-                      setAnswer(null);
-                      setFeedback(null);
                       setPage("lesson");
                     }}
                   >
@@ -796,60 +791,7 @@ function App() {
                 </article>
                 <LessonDiagram topic={topic.id} />
               </div>
-              <section className="panel quiz">
-                <span className="eyebrow">CHECK YOUR UNDERSTANDING</span>
-                <h2>잠깐, 이해했나요?</h2>
-                <h3>{topic.quiz.question}</h3>
-                {topic.quiz.options.map((o: string, i: number) => (
-                  <button
-                    key={o}
-                    disabled={!!feedback}
-                    className={`quiz-option ${answer === i ? "selected" : ""} ${feedback?.answer === i ? "correct" : ""}`}
-                    onClick={() => setAnswer(i)}
-                  >
-                    <span>{i + 1}</span>
-                    {o}
-                  </button>
-                ))}
-                {feedback ? (
-                  <div className="quiz-feedback">
-                    <strong>
-                      {feedback.correct ? "정답이에요!" : "다시 살펴볼까요?"}
-                    </strong>
-                    <p>{feedback.explanation}</p>
-                    <button
-                      className="secondary"
-                      onClick={() => {
-                        setAnswer(null);
-                        setFeedback(null);
-                      }}
-                    >
-                      다시 풀기
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    disabled={answer === null || busy}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        setFeedback(
-                          await post(`/quiz/${topic.id}`, {
-                            answer,
-                            requestKey: crypto.randomUUID(),
-                          }),
-                        );
-                      } catch (e) {
-                        fail(e);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    정답 확인
-                  </button>
-                )}
-              </section>
+              <QuizPanel key={topic.id} topic={topic} onError={fail} />
             </div>
           </>
         )}
@@ -1329,9 +1271,32 @@ function App() {
     </>
   );
 }
-class AppBoundary extends React.Component<React.PropsWithChildren,{failed:boolean}> {
-  state={failed:false};
-  static getDerivedStateFromError(){return {failed:true};}
-  render(){return this.state.failed?<main className="system-error"><img src="/logo.svg" width="150" alt="Algostep"/><h1>화면을 표시하지 못했어요</h1><p>화면을 다시 열어 주세요. 마지막 자동 저장 이후의 변경은 복구되지 않을 수 있어요.</p><button onClick={()=>location.reload()}>화면 다시 열기</button></main>:this.props.children;}
+class AppBoundary extends React.Component<
+  React.PropsWithChildren,
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? (
+      <main className="system-error">
+        <img src="/logo.svg" width="150" alt="Algostep" />
+        <h1>화면을 표시하지 못했어요</h1>
+        <p>
+          화면을 다시 열어 주세요. 마지막 자동 저장 이후의 변경은 복구되지 않을
+          수 있어요.
+        </p>
+        <button onClick={() => location.reload()}>화면 다시 열기</button>
+      </main>
+    ) : (
+      this.props.children
+    );
+  }
 }
-createRoot(document.getElementById("root")!).render(<AppBoundary><App /></AppBoundary>);
+createRoot(document.getElementById("root")!).render(
+  <AppBoundary>
+    <App />
+  </AppBoundary>,
+);

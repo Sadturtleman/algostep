@@ -1,4 +1,5 @@
 import { fleetConfig } from "./worker-fleet.js";
+import { topicQuizzes } from "./quiz-bank.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
@@ -378,20 +379,30 @@ export async function createApp(c: Config) {
   app.get("/api/topics", async () => ({
     topics: (
       await c.db.query(
-        "SELECT id,title,category,priority,body,complexity,quiz-'answer'-'explanation' AS quiz FROM topics ORDER BY priority,id",
+        "SELECT id,title,category,priority,body,complexity,quiz FROM topics ORDER BY priority,id",
       )
-    ).rows,
+    ).rows.map((t) => {
+      const quizzes = topicQuizzes(t as any).map(
+        ({ answer, explanation, ...q }) => q,
+      );
+      return { ...t, quiz: quizzes[0], quizzes };
+    }),
   }));
   app.post("/api/quiz/:topic", async (req: any) => {
     const v = z
-      .object({ answer: z.number().int().min(0).max(10), requestKey: key })
+      .object({
+        answer: z.number().int().min(0).max(10),
+        requestKey: key,
+        questionId: z.string().max(80).default("core"),
+      })
       .parse(req.body);
     const { rows } = await c.db.query("SELECT * FROM topics WHERE id=$1", [
       req.params.topic,
     ]);
     if (!rows[0])
       throw new DomainError(404, "NOT_FOUND", "학습 내용을 찾을 수 없어요.");
-    const q = rows[0].quiz;
+    const q = topicQuizzes(rows[0] as any).find((q) => q.id === v.questionId);
+    if (!q) throw new DomainError(404, "NOT_FOUND", "문항을 찾을 수 없어요.");
     if (v.answer >= q.options.length)
       throw new DomainError(400, "INVALID_INPUT", "선택지를 확인해 주세요.");
     const existing = await c.db.query(

@@ -556,6 +556,27 @@ summary {
 }
 .object-graph { max-height: 600px; overflow: auto; }
 .object-graph svg { max-height: none; height: auto; }
+.diagram-canvas { min-width: 0; margin: 16px 0; }
+.diagram-toolbar, .quiz-navigation { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.diagram-toolbar label { display:flex; align-items:center; gap:6px; }
+.diagram-toolbar input[type=range] { width:100px; }
+.diagram-toolbar select, .example-picker select { padding:8px; max-width:100%; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+.diagram-scroll { max-width:100%; max-height:560px; overflow:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface); overscroll-behavior:contain; }
+.diagram-scroll svg.interactive-diagram { display:block; max-width:none; max-height:none; flex-shrink:0; }
+.diagram-node { cursor:grab; touch-action:none; outline:none; user-select:none; }
+.diagram-node .node.active + text { fill:var(--on-accent); }
+.diagram-node:active { cursor:grabbing; }
+.diagram-node:focus .node { stroke:var(--accent); stroke-width:4; }
+.diagram-node text { pointer-events:none; fill:var(--text); font-size:15px; }
+.diagram-node .node-detail { font-size:11px; }
+.diagram-edge .edge-label { font-size:12px; paint-order:stroke; stroke:var(--surface); stroke-width:5px; fill:var(--text); }
+.diagram-legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--muted); font-size:12px; margin-top:10px; }
+.diagram-legend span:first-child { color:var(--accent); }
+.diagram-legend span:nth-child(2) { color:var(--success); }
+.example-picker { margin:16px 0; padding:14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; }
+.example-picker label { display:grid; gap:8px; }
+.example-picker p { color:var(--muted); line-height:1.7; }
+.lesson-layout > *, .lesson-layout section, .trace { min-width:0; }
 .lesson-controls {
   display: grid;
   gap: 12px;

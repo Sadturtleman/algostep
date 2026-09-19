@@ -1,3 +1,5 @@
+import { DiagramCanvas, graphPositions } from "./DiagramCanvas.js";
+import { lessonExamples } from "./lesson-examples.js";
 import React, { useEffect, useState } from "react";
 import { ObjectGraph } from "./ObjectGraph.js";
 import { lessonFrames } from "./lesson-model.js";
@@ -174,108 +176,84 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
   ) {
     const n = vars.graph.length;
     if (n > 20) return <p>정점이 많아 변수 보기로 표시해요.</p>;
-    const positions = Array.from({ length: n }, (_, i) => ({
-      x: 250 + 170 * Math.cos((2 * Math.PI * i) / n - Math.PI / 2),
-      y: 140 + 100 * Math.sin((2 * Math.PI * i) / n - Math.PI / 2),
-    }));
+    const positions = graphPositions(vars.graph);
+    const edges = vars.graph.flatMap((neighbors: number[], i: number) =>
+      [...new Set(neighbors)]
+        .filter(
+          (j) =>
+            Number.isInteger(j) &&
+            j >= 0 &&
+            j < n &&
+            (j >= i || !vars.graph[j].includes(i)),
+        )
+        .map((j) => ({
+          from: String(i),
+          to: String(j),
+          directed: !vars.graph[j].includes(i),
+        })),
+    );
     return (
       <>
-        <svg
-          viewBox="0 0 500 280"
-          role="img"
-          aria-label="그래프의 현재 방문 상태"
-        >
-          {vars.graph.flatMap((neighbors: any[], i: number) =>
-            neighbors
-              .filter((j) => Number.isInteger(j) && j >= 0 && j < n && j > i)
-              .map((j) => (
-                <line
-                  key={`${i}-${j}`}
-                  x1={positions[i].x}
-                  y1={positions[i].y}
-                  x2={positions[j].x}
-                  y2={positions[j].y}
-                  className="edge"
-                />
-              )),
-          )}
-          {positions.map((p, i) => (
-            <g key={i}>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r="22"
-                className={
-                  vars.current === i
-                    ? "node active"
-                    : vars.visited?.[i]
-                      ? "node visited"
-                      : "node"
-                }
-              />
-              <text x={p.x} y={p.y + 5} textAnchor="middle">
-                {i}
-              </text>
-            </g>
-          ))}
-        </svg>
+        <DiagramCanvas
+          key={topic}
+          label="그래프의 현재 방문 상태"
+          nodes={positions.map((p, i) => ({
+            id: String(i),
+            ...p,
+            label: String(i),
+            state:
+              vars.current === i
+                ? "active"
+                : vars.visited?.[i]
+                  ? "visited"
+                  : "",
+          }))}
+          edges={edges}
+        />
         <p>
-          큐 <code>{JSON.stringify(vars.queue ?? [])}</code> · 방문 순서{" "}
+          {topic === "dfs" ? "스택" : "큐"}{" "}
+          <code>{JSON.stringify(vars.queue ?? [])}</code> · 방문 순서{" "}
           <code>{JSON.stringify(vars.order ?? [])}</code>
         </p>
       </>
     );
   }
-  if (topic === "tree" && Array.isArray(vars.values)) {
-    const values = vars.values.slice(0, 15);
-    const pos = values.map((_: any, i: number) => {
+  if ((topic === "tree" || topic === "heap") && Array.isArray(vars.values)) {
+    const values = vars.values.slice(0, 31),
+      levels = Math.max(1, Math.ceil(Math.log2(values.length + 1))),
+      width = Math.max(560, 2 ** (levels - 1) * 100);
+    const nodes = values.map((v: any, i: number) => {
       const level = Math.floor(Math.log2(i + 1)),
         first = 2 ** level - 1;
-      return { x: (500 * (i - first + 0.5)) / 2 ** level, y: 35 + level * 60 };
+      return {
+        id: String(i),
+        x: (width * (i - first + 0.5)) / 2 ** level,
+        y: 65 + level * 110,
+        label: String(v),
+        detail: `인덱스 ${i}`,
+        state: vars.index === i || vars.mid === i ? "active" : "",
+      };
     });
     return (
       <>
-        <svg
-          viewBox="0 0 500 250"
-          role="img"
-          aria-label="이진 트리와 현재 노드"
-        >
-          {pos.slice(1).map((p: any, i: number) => {
-            const parent = pos[Math.floor(i / 2)];
-            return (
-              <line
-                key={i}
-                x1={parent.x}
-                y1={parent.y}
-                x2={p.x}
-                y2={p.y}
-                className="edge"
-              />
-            );
-          })}
-          {values.map((v: any, i: number) => (
-            <g key={i}>
-              <circle
-                cx={pos[i].x}
-                cy={pos[i].y}
-                r="21"
-                className={
-                  vars.index === i
-                    ? "node active"
-                    : Array.isArray(vars.order) && vars.order.includes(v)
-                      ? "node visited"
-                      : "node"
-                }
-              />
-              <text x={pos[i].x} y={pos[i].y + 5} textAnchor="middle">
-                {String(v)}
-              </text>
-            </g>
-          ))}
-        </svg>
+        <DiagramCanvas
+          key={topic}
+          label="이진 트리와 현재 노드"
+          nodes={nodes}
+          edges={nodes
+            .slice(1)
+            .map((node: any, i: number) => ({
+              from: String(Math.floor(i / 2)),
+              to: node.id,
+            }))}
+        />
         <p>
-          중위 순회 <code>{JSON.stringify(vars.order ?? [])}</code>
+          {topic === "tree" ? "중위 순회" : "힙 배열"}{" "}
+          <code>{JSON.stringify(vars.order ?? values)}</code>
         </p>
+        {vars.values.length > 31 && (
+          <p>처음 31개 노드를 표시해요. 전체 값은 변수 보기에서 확인하세요.</p>
+        )}
       </>
     );
   }
@@ -286,23 +264,33 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
       : Array.isArray(vars.order)
         ? vars.order
         : null;
-  if(a?.length===0 && Object.values(vars).some((v:any)=>v?.$id))return null;
+  if (a?.length === 0 && Object.values(vars).some((v: any) => v?.$id))
+    return null;
   if (a)
     return (
-      <div className="array">
-        {a.slice(0, 30).map((v: any, i: number) => (
-          <div
-            key={i}
-            className={`cell ${i === vars.mid ? "active" : ""} ${i === vars.answer ? "visited" : ""}`}
-          >
-            <small>{i}</small>
-            <strong>
-              {typeof v === "object" ? JSON.stringify(v) : String(v)}
-            </strong>
-            {i === vars.left && <em>L</em>}
-            {i === vars.right && <em>R</em>}
-          </div>
-        ))}
+      <div className="array-board">
+        <DiagramCanvas
+          key={topic}
+          label="배열 인덱스와 포인터"
+          nodes={a
+            .slice(0, 30)
+            .map((v: any, i: number) => ({
+              id: String(i),
+              x: 75 + (i % 6) * 120,
+              y: 65 + Math.floor(i / 6) * 110,
+              label: typeof v === "object" ? JSON.stringify(v) : String(v),
+              detail: `[${i}] ${i === vars.left ? "L " : ""}${i === vars.right ? "R " : ""}${i === vars.mid ? "mid" : ""}`,
+              shape: "card" as const,
+              width: 100,
+              height: 68,
+              state:
+                i === vars.mid ? "active" : i === vars.answer ? "visited" : "",
+            }))}
+        />
+        {a.length === 0 && <p>비어 있는 구조예요.</p>}
+        {a.length > 30 && (
+          <p>처음 30개 원소를 표시해요. 전체 값은 변수 보기에서 확인하세요.</p>
+        )}
       </div>
     );
   return (
@@ -313,54 +301,31 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
   );
 }
 export function LessonDiagram({ topic }: { topic: string }) {
-  const presets: any = {
-    "binary-search": [
-      { a: [2, 5, 8, 13, 21, 34, 55], left: 0, right: 6, mid: 3 },
-      { a: [2, 5, 8, 13, 21, 34, 55], left: 4, right: 6, mid: 5 },
-      { a: [2, 5, 8, 13, 21, 34, 55], left: 4, right: 4, mid: 4, answer: 4 },
-    ],
-    bfs: [
-      {
-        graph: [[1, 2], [0, 3, 4], [0, 4], [1], [1, 2, 5], [4]],
-        current: 0,
-        visited: [true, false, false, false, false, false],
-        queue: [0],
-        order: [],
-      },
-      {
-        graph: [[1, 2], [0, 3, 4], [0, 4], [1], [1, 2, 5], [4]],
-        current: 1,
-        visited: [true, true, true, true, true, false],
-        queue: [2, 3, 4],
-        order: [0, 1],
-      },
-      {
-        graph: [[1, 2], [0, 3, 4], [0, 4], [1], [1, 2, 5], [4]],
-        current: 2,
-        visited: [true, true, true, true, true, false],
-        queue: [3, 4],
-        order: [0, 1, 2],
-      },
-    ],
-    tree: [
-      { values: [8, 4, 12, 2, 6, 10, 14], index: 3, order: [2] },
-      { values: [8, 4, 12, 2, 6, 10, 14], index: 1, order: [2, 4] },
-      { values: [8, 4, 12, 2, 6, 10, 14], index: 4, order: [2, 4, 6] },
-    ],
-  };
+  const examples = lessonExamples(topic);
+  const [exampleIndex, setExampleIndex] = useState(0);
   const [step, setStep] = useState(0);
   const [text, setText] = useState("2, 5, 8, 13, 21, 34, 55");
   const [target, setTarget] = useState(21);
   const [values, setValues] = useState([2, 5, 8, 13, 21, 34, 55]);
   const [invalid, setInvalid] = useState("");
-  const computed = lessonFrames(topic, values, target);
-  const frames = computed.length
-    ? computed
-    : (presets[topic] ?? []).map((vars: any) => ({
-        vars,
-        note: "설명용 예제",
-      }));
-  useEffect(() => setStep(0), [topic]);
+  const [custom, setCustom] = useState(false);
+  const computed = lessonFrames(
+    topic,
+    values,
+    target,
+    custom ? undefined : examples[exampleIndex]?.graph,
+  );
+  const frames = computed;
+  useEffect(() => {
+    const first = lessonExamples(topic)[0];
+    setStep(0);
+    setExampleIndex(0);
+    setText(first.values.join(", "));
+    setValues(first.values);
+    setTarget(first.target);
+    setInvalid("");
+    setCustom(false);
+  }, [topic]);
   if (!frames.length) return null;
   const current = frames[Math.min(step, frames.length - 1)];
   return (
@@ -368,6 +333,33 @@ export function LessonDiagram({ topic }: { topic: string }) {
       <div className="section-heading">
         <h3>개념을 한 단계씩</h3>
         <span className="badge">설명용 예제</span>
+      </div>
+      <div className="example-picker">
+        <label>
+          예제 선택{" "}
+          <select
+            aria-label="예제 선택"
+            value={exampleIndex}
+            onChange={(e) => {
+              const i = Number(e.target.value),
+                example = examples[i];
+              setExampleIndex(i);
+              setCustom(false);
+              setText(example.values.join(", "));
+              setValues(example.values);
+              setTarget(example.target);
+              setStep(0);
+              setInvalid("");
+            }}
+          >
+            {examples.map((ex, i) => (
+              <option key={i} value={i}>
+                {i + 1}. {ex.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p>{examples[exampleIndex]?.description}</p>
       </div>
       <form
         className="lesson-controls"
@@ -386,6 +378,7 @@ export function LessonDiagram({ topic }: { topic: string }) {
             return;
           }
           setValues(nums);
+          setCustom(true);
           setStep(0);
           setInvalid("");
         }}
@@ -433,15 +426,25 @@ export function LessonDiagram({ topic }: { topic: string }) {
         {invalid && <p role="alert">{invalid}</p>}
       </form>
       <p>{current.note}</p>
-      <Structure topic={topic} vars={current.vars} />
-      <ObjectGraph vars={current.vars} educational />
+      <Structure
+        key={"structure-" + topic + exampleIndex}
+        topic={topic}
+        vars={current.vars}
+      />
+      <ObjectGraph
+        key={"objects-" + topic + exampleIndex}
+        vars={current.vars}
+        educational
+      />
       {current.vars.stack && (
         <p>호출 스택: {current.vars.stack.join(" → ") || "비어 있음"}</p>
       )}
       <p className="caption">
         설명용 예제이며 제출 코드의 실행 결과와는 달라요.
         {["bfs", "dfs", "graph-list", "graph-matrix"].includes(topic) &&
-          " 입력 값으로 예제 간선을 구성해요."}
+          (custom
+            ? " 입력 값으로 예제 간선을 구성해요."
+            : " 선택한 예제의 간선을 사용해요.")}
         {topic === "recursion" &&
           " 호출이 길어지지 않도록 크기는 최대 6을 사용해요."}
         {["dp", "memoization", "tabulation"].includes(topic) &&
