@@ -1,5 +1,5 @@
 import type { DB } from "./db.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   eventProperties,
   ga4EventName,
@@ -29,6 +29,11 @@ export function ga4Payload(row: Record<string, any>) {
     row.metadata,
   );
   const context = row.analytics_context ?? {};
+  // GA4 requires number.number even for server-only events. Hash the opaque
+  // analytics identity into that format, without inventing a browser session.
+  const fallback = createHash("sha256")
+    .update("algostep-ga4:" + (row.analytics_id ?? "system"))
+    .digest();
   const params: Record<string, string | number> = {
     event_id: row.id,
     event_source: context.clientId ? "web_context" : "server_unattributed",
@@ -43,7 +48,8 @@ export function ga4Payload(row: Record<string, any>) {
     params.session_id = context.sessionId;
   return {
     client_id:
-      context.clientId ?? "server." + (row.analytics_id ?? "algostep-system"),
+      context.clientId ??
+      `${fallback.readUInt32BE(0)}.${fallback.readUInt32BE(4)}`,
     ...(row.analytics_id ? { user_id: row.analytics_id } : {}),
     timestamp_micros: new Date(row.created_at).getTime() * 1000,
     consent: { ad_user_data: "DENIED", ad_personalization: "DENIED" },

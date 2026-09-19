@@ -193,6 +193,29 @@ test("GA4 payload excludes raw identity, entity IDs, extra properties and matche
     ga4Config({ GA4_MEASUREMENT_ID: "bad", GA4_API_SECRET: "secret" }),
   );
 });
+test("GA4 server-only client ID is numeric, stable and does not invent session attribution", () => {
+  const row = {
+    id: randomUUID(),
+    type: "LOGOUT",
+    created_at: new Date(),
+    analytics_id: analyticsId,
+    metadata: {},
+  };
+  const payload = ga4Payload(row);
+  assert.match(payload.client_id, /^\d+\.\d+$/);
+  assert.equal(
+    ga4Payload({ ...row, id: randomUUID() }).client_id,
+    payload.client_id,
+  );
+  assert.notEqual(
+    ga4Payload({ ...row, analytics_id: randomUUID() }).client_id,
+    payload.client_id,
+  );
+  assert.equal(payload.events[0].params.event_source, "server_unattributed");
+  assert.equal(payload.events[0].params.session_id, undefined);
+  assert.equal(payload.events[0].params.engagement_time_msec, undefined);
+});
+
 test("async server result inherits the originating request context", async () => {
   await reset();
   const entity = randomUUID();
