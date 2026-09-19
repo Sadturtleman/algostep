@@ -12,7 +12,7 @@ export const assumptions = {
   executionSeconds: 30,
   requestsPerExecution: 15,
   requestSeconds: 0.1,
-  maintenanceSeconds: 2,
+  maintenanceSeconds: 7,
   reviewSeconds: 20,
   reviewRatio: 0.1,
   inputTokens: 4000,
