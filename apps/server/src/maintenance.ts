@@ -5,6 +5,7 @@ import { cleanExpired } from "./domain.js";
 import { processReview, recoverReviews } from "./review-worker.js";
 import { deleteObjects, type ObjectStorage } from "./object-storage.js";
 import { deliverGa4 } from "./ga4.js";
+import { deliverAmplitude } from "./amplitude.js";
 export async function maintenance(db: DB, storage?: ObjectStorage) {
   await cleanExpired(db);
   await recoverReviews(db);
@@ -23,6 +24,12 @@ export async function maintenance(db: DB, storage?: ObjectStorage) {
     }
   const llm = llmOptions();
   if (llm) await processReview(db, llm);
-  await deliverGa4(db);
+  // Independent destinations: one provider failure must not starve the other.
+  const delivered = await Promise.allSettled([
+    deliverGa4(db),
+    deliverAmplitude(db),
+  ]);
+  if (delivered.some((r) => r.status === "rejected"))
+    throw new Error("ANALYTICS_MAINTENANCE_FAILED");
   if (fleetError) throw fleetError;
 }

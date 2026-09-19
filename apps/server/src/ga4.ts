@@ -60,7 +60,7 @@ export function ga4Payload(row: Record<string, any>) {
 
 // A 2xx collect response means accepted at the HTTP layer, not proven ingestion.
 // Google provides no general idempotency contract: ambiguous collect responses
-// are quarantined, never automatically resent. Redash reads the exact DB ledger.
+// are quarantined, never automatically resent. Operational metrics use the exact DB ledger.
 export async function deliverGa4(
   db: DB,
   config = ga4Config(),
@@ -184,18 +184,7 @@ export async function deliverGa4(
 
 export async function analyticsStatus(db: DB) {
   const config = ga4Config();
-  let redashUrl: string | null = null;
-  try {
-    const u = new URL(process.env.REDASH_URL ?? "");
-    if (
-      u.protocol === "https:" &&
-      !u.username &&
-      !u.password &&
-      !u.search &&
-      !u.hash
-    )
-      redashUrl = u.href;
-  } catch {}
+  const { amplitudeStatus } = await import("./amplitude.js");
   return {
     ga4: {
       configured: !!config,
@@ -206,7 +195,7 @@ export async function analyticsStatus(db: DB) {
         )
       ).rows,
     },
-    redash: { url: redashUrl, source: "read-only PostgreSQL analytics views" },
+    amplitude: await amplitudeStatus(db),
     catalog: Object.entries(eventProperties).map(([type]) => ({
       type,
       ga4Name: ga4EventName(type),

@@ -39,7 +39,7 @@ test("UI events survive a failed batch without duplicates or typed text; admin s
     .getByRole("button", { name: "비즈니스 로그", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "GA4 · Redash 연결 상태" }),
+    page.getByRole("heading", { name: "GA4 · Amplitude 연결 상태" }),
   ).toBeVisible();
   await expect(
     page.getByText("GA4: 연결 설정 대기", { exact: true }),

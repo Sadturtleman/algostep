@@ -294,7 +294,7 @@ test("pre-collect transport failure backs off; disabled, expired and abandoned l
   });
   assert.equal((await statuses())[0].status, "UNCERTAIN");
 });
-test("Redash views expose pseudonymous data, all dashboard SQL runs, PUBLIC cannot select views", async () => {
+test("Internal analytics views expose pseudonymous data, all dashboard SQL runs, PUBLIC cannot select views", async () => {
   await reset();
   await add();
   const row = (await db.query("SELECT * FROM analytics_events")).rows[0];
@@ -306,7 +306,7 @@ test("Redash views expose pseudonymous data, all dashboard SQL runs, PUBLIC cann
   );
   for (const q of JSON.parse(
     readFileSync(
-      new URL("../../../scripts/redash-queries.json", import.meta.url),
+      new URL("../../../scripts/business-queries.json", import.meta.url),
       "utf8",
     ),
   )) {

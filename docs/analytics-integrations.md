@@ -1,10 +1,10 @@
-# GA4 · Redash 비즈니스 이벤트
+# GA4 · Amplitude 비즈니스 이벤트
 
 ## 상태와 데이터 흐름
 
-현재 앱의 36종 비즈니스 이벤트를 공통 원장에 저장한다. 서버 작업은 상태 변경과 같은 트랜잭션에서 `business_events`와 `analytics_deliveries`에 기록한다. UI 상호작용은 인증·CSRF가 적용된 `POST /api/analytics/events`를 통해 같은 원장으로 들어간다. GA4는 이 원장에서 Measurement Protocol로 전송하고 Redash는 조회 전용 PostgreSQL 뷰에서 읽는다.
+현재 앱의 36종 비즈니스 이벤트를 공통 원장에 저장한다. 서버 작업은 상태 변경과 같은 트랜잭션에서 `business_events`와 `analytics_deliveries`에 기록한다. UI 상호작용은 인증·CSRF가 적용된 `POST /api/analytics/events`를 통해 같은 원장으로 들어간다. GA4는 이 원장에서 Measurement Protocol로 전송하고 Amplitude는 별도 큐에서 HTTP V2 API로 전송한다.
 
-**외부 활성화에 필요한 값:** GA4 웹 측정 ID, Measurement Protocol API Secret, 사용자의 Redash HTTPS 주소와 관리 API 권한. 설정 전에도 DB 수집은 동작하며 관리자 → 비즈니스 로그에 `연결 설정 대기`로 표시한다. 연결 설정 완료와 외부 보고서 수신 검증은 다르다. 이 문서나 코드의 존재만으로 외부 연결 완료를 뜻하지 않는다.
+**외부 활성화에 필요한 값:** GA4 웹 측정 ID, Measurement Protocol API Secret, Amplitude 프로젝트 수집 키와 리전. 설정 전에도 DB 수집은 동작하며 관리자 → 비즈니스 로그에 `연결 설정 대기`로 표시한다. 연결 설정 완료와 외부 보고서 수신 검증은 다르다. 이 문서나 코드의 존재만으로 외부 연결 완료를 뜻하지 않는다.
 
 ## 이벤트 목록
 
@@ -32,7 +32,7 @@ GA4 이름은 아래 코드에 소문자 `as_` 접두어를 붙인다. 예: `EXE
 - UI는 1초 단위, 최대 25건씩 전송한다. 연결 실패 시 최대 30초 간격으로 재시도하고 메모리에 최대 200건만 둔다. 탭 강제 종료·오프라인 장기 지속·메모리 한도에서는 유실될 수 있다. 키 입력·프레임별로 전송하지 않는다.
 - 기존 1분 유지보수 스케줄에서 GA4 큐를 처리한다. 사용자/브라우저 컨텍스트별 최대 25건, 호출당 최대 250건 또는 20초 예산이다. 이벤트별 실제 발생 시각을 유지한다. 대량 이용 시 PENDING 추이와 처리 지연을 보고 처리량을 조정한다.
 - 전송 전 `/debug/mp/collect` 검증 후 `/mp/collect`로 보낸다. 검증 단계의 네트워크 장애는 최대 5회 재시도한다. 2xx는 `ACCEPTED`(HTTP 수신)이며 GA4 보고서 반영을 증명하지 않는다. 실제 수신 여부가 불명확한 요청/임대 만료는 `UNCERTAIN`으로 격리하고 자동 재전송하지 않는다. 검증 실패는 `REJECTED`, 72시간이 지난 미전송 이벤트는 `EXPIRED`다. 만료되어도 원장은 남는다.
-- GA4는 일반 이벤트 ID의 exactly-once 처리를 보장하지 않는다. 정확한 운영 집계는 DB/Redash 원장을 기준으로 한다. 활성화 전 72시간 이상 지난 데이터는 Redash에서만 분석하며 시간을 조작해 GA4에 넣지 않는다.
+- GA4는 일반 이벤트 ID의 exactly-once 처리를 보장하지 않는다. 정확한 운영 집계는 DB 원장을 기준으로 한다. 활성화 전 72시간 이상 지난 데이터는 DB 원장에서 분석하며 시간을 조작해 GA4에 넣지 않는다.
 - 브라우저 GA 태그의 client_id/session_id와 임의 생성한 analytics 사용자 UUID만 전달한다. 태그 차단·Android WebView 등 컨텍스트가 없으면 `server_unattributed`로 구분한다. 이를 정상 웹 세션·체류 시간 지표로 해석하지 않는다. engagement_time을 임의 생성하지 않는다.
 - Google 태그 자체의 page_view/first_visit/session_start 등 자동 이벤트는 GA4의 웹 계측이며 36종 앱 이벤트 원장과 별도다. 앱 이벤트를 Google 태그와 서버 양쪽에서 중복 전송하지 않는다.
 
@@ -46,23 +46,23 @@ GA4 이름은 아래 코드에 소문자 `as_` 접두어를 붙인다. 예: `EXE
 
 코드는 로그인 사용자에 한해 태그를 로드하고 로그아웃하면 추적을 비활성화한다. 전송에 코드·이메일·Google sub·문의 본문·검색어·개별 기록 URL·인증 토큰을 포함하지 않는다. 브라우저 page URL은 서비스 origin으로 고정한다. API Secret은 서버에서만 사용한다.
 
-## Redash 활성화
+## Amplitude 활성화
 
-새 유료 Redash 호스트를 자동 생성하지 않는다. 기존 HTTPS Redash 인스턴스가 필요하다. Redash는 이벤트 수집기가 아니라 읽기 전용 DB 분석 경로다.
+GA4와 같은 원장에서 HTTP V2 API로 전송한다. 별도 분석 서버나 DB 접속 계정은 필요하지 않다. 기존 SQL 뷰는 내부 운영 조회용으로 유지한다.
 
-1. 마이그레이션 6을 적용한 후, 서비스 소유자 DB 연결·CA·32자 이상 임의 비밀번호를 보안 환경 변수로 전달해 `npx tsx scripts/provision-redash-role.ts`를 실행한다. `DATABASE_URL`, `DATABASE_SSL_CA`, `REDASH_DB_PASSWORD`가 필요하다. 스크립트는 관리 표식이 있는 `algostep_redash` 역할만 만들거나 갱신한다. 기존에 다른 용도로 만든 동명 역할은 변경하지 않는다.
-2. 조회 계정은 `algostep.analytics_events`, `analytics_visitors`, `analytics_users`, `analytics_costs`, `analytics_revenue`, `analytics_inquiries`, `analytics_delivery_status` 7개 뷰의 SELECT만 허용한다. 기본 테이블 권한·다른 역할 멤버십이 발견되면 트랜잭션을 롤백한다. 기본 read-only, 15초 문장 제한, 3개 연결 제한을 둔다. 이 계정으로 코드/세션/문의 원문을 읽을 수 없어야 한다.
-3. Redash에 제공할 **조회 전용** 연결 URL을 생성해 보안 환경 변수 `REDASH_DATABASE_URL`로 전달한다. Supabase 세션 pooler 사용자명은 `algostep_redash.<project-ref>`를 사용한다. 서비스의 postgres 관리자 URL을 Redash에 넣지 않는다. 해당 프로젝트의 CA로 TLS `verify-full` 검증을 유지한다.
-4. `REDASH_URL`, `REDASH_API_KEY`, `REDASH_DATABASE_URL`, `DATABASE_SSL_CA` 환경에서 `node scripts/bootstrap-redash.mjs`를 실행한다. 관리 권한으로 데이터 소스·13개 쿼리·대시보드 위젯을 만들고 각 쿼리를 실제 실행한다. 오류에 비밀 값이나 결과 행을 출력하지 않는다. 기본 위젯은 조회 결과 표다.
-5. `tmp/redash-state.json`은 동일 대상에 재실행하기 위한 ID 매핑이다. API 키/비밀번호를 포함하지 않지만 Git에 넣지 않는다. 같은 이름의 기존 데이터 소스에 이 상태 파일 없이 임의 덮어쓰기를 하지 않는다. Redash 사용자/그룹 접근 권한을 관리자에게만 제한하고 공개 대시보드 공유를 켜지 않는다.
-6. Cloud Run `redash_url`을 연결한 주소로 설정하면 관리자 화면에 링크가 표시된다. 주소가 존재한다는 사실만으로 데이터 소스 연결/쿼리 실행 성공을 표시하지 않는다.
+1. Amplitude에 Algostep 전용 프로젝트를 생성하고 프로젝트의 이벤트 수집 API 키만 Secret Manager `algostep-amplitude-api-key`에 저장한다. 데이터 조회·관리용 Secret Key는 사용하지 않는다.
+2. Cloud Run의 `AMPLITUDE_API_KEY`에 Secret을 연결하고 프로젝트 리전에 따라 `AMPLITUDE_REGION=US` 또는 `EU`를 설정한다. `AMPLITUDE_PROJECT_URL`에는 자격 증명이 없는 프로젝트 URL만 지정한다.
+3. 마이그레이션 7은 별도 `amplitude_deliveries` 큐를 추가한다. 기존 원장과 GA4 큐는 유지한다. 키가 없으면 외부 전송하지 않는다.
+4. 최대 10건씩, 유지보수 호출당 최대 250건 또는 20초간 처리한다. 네트워크 실패·429·5xx·임대 만료는 재시도한다. 최초 전송 payload와 `device_id`/`insert_id`를 저장해 재시도마다 유지한다. 공급자의 7일 중복 제거 기간보다 짧은 6일 후 재시도를 종료한다.
+5. 유효한 200 응답은 `INGESTED`로 표시한다. 신규 수집 수가 요청 건수보다 작으면 `INGESTED_OR_DEDUPLICATED`로 구분한다. 이는 보고서 반영 완료를 뜻하지 않으므로 Amplitude 이벤트 화면에서 별도 확인한다. 4xx(429 제외)는 `REJECTED`로 표시한다.
+6. GA4와 Amplitude는 독립적으로 전송한다. 한 공급자의 실패가 다른 공급자의 큐 처리를 막지 않는다. 소스 코드·문의 내용·이메일·Google ID는 전달하지 않는다.
 
-13개 쿼리는 누적·일·주·월 접속자, 일/주/월 추이, 가입 사용자, 이벤트 목록, 학습 활동별 고유 사용자, 실행 판정, 비용, 매출/환불, 문의 상태, GA4 전달 상태, 최근 이벤트 상세다. 활동별 사용자 수는 순서가 증명된 전환 퍼널이 아니다. KST 기준 월요일 시작 주간 및 달력 월간, 통화별 분리 집계다. 기존 청구 자료 가져오기에 기반하므로 비용 미수집을 0원으로 바꾸지 않는다.
+가입·접속·학습·실행·리뷰 전환은 Amplitude에서 분석한다. 실제 비용·매출·문의 운영 지표는 기존 관리자 대시보드와 DB 원장을 기준으로 한다. 결제 연동 전 구매 이벤트를 만들지 않는다. 유료 플랜은 자동 구매하지 않는다.
 
 ## API / 운영 확인
 
 - `POST /api/analytics/events`: 로그인·CSRF 필수, 배열 1~25건, 경로별 분당 60요청(기본 IP 제한). 허용 타입/필드 외 입력은 전체 배치를 거절한다.
-- `GET /api/admin/analytics`: 관리자 전용. 설정 여부, 전송 상태 건수, 안전한 Redash 주소, 이벤트 카탈로그. API Secret을 반환하지 않는다.
+- `GET /api/admin/analytics`: 관리자 전용. 설정 여부, 전송 상태 건수, 안전한 Amplitude 프로젝트 주소, 이벤트 카탈로그. API Secret을 반환하지 않는다.
 - 현재 원장/전송 상태는 별도 자동 삭제 정책 없이 보관한다. Supabase 용량은 지속 관찰하고 보관 기간을 결정한 후 원장 아카이브/삭제를 적용해야 한다. 학습 기록 30일 보관 정책을 비즈니스 원장에 자동 적용하지 않는다.
 
-참고: [GA4 전송 및 제한](https://developers.google.com/analytics/devguides/collection/protocol/ga4/sending-events), [GA4 검증](https://developers.google.com/analytics/devguides/collection/protocol/ga4/validating-events), [Redash API](https://redash.io/help/user-guide/integrations-and-api/api/).
+참고: [GA4 전송 및 제한](https://developers.google.com/analytics/devguides/collection/protocol/ga4/sending-events), [GA4 검증](https://developers.google.com/analytics/devguides/collection/protocol/ga4/validating-events), [Amplitude HTTP V2](https://www.amplitude.com/docs/apis/analytics/http-v2).

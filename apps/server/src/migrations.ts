@@ -65,6 +65,12 @@ const migrations = [
     REVOKE ALL ON analytics_events,analytics_visitors,analytics_users,analytics_costs,analytics_revenue,analytics_inquiries,analytics_delivery_status FROM PUBLIC;
     `,
   },
+  {
+    version: 7,
+    sql: `CREATE TABLE amplitude_deliveries(event_id uuid PRIMARY KEY REFERENCES business_events ON DELETE CASCADE,status text NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','PROCESSING','INGESTED','REJECTED','EXPIRED')),attempts integer NOT NULL DEFAULT 0,available_at timestamptz NOT NULL DEFAULT now(),first_attempt_at timestamptz,lease_token uuid,lease_until timestamptz,payload jsonb,last_code text,updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX amplitude_deliveries_queue ON amplitude_deliveries(status,available_at);
+    INSERT INTO amplitude_deliveries(event_id) SELECT id FROM business_events;`,
+  },
 ];
 
 export async function migrate(db: DB) {

@@ -61,15 +61,24 @@ variable "ga4_measurement_id" {
   }
 }
 
-variable "redash_url" {
+variable "amplitude_project_url" {
   type        = string
   default     = ""
-  description = "Private Redash base URL; no API key or public dashboard token."
+  description = "Amplitude project URL without credentials."
+}
+
+variable "amplitude_region" {
+  type    = string
+  default = "US"
+  validation {
+    condition     = contains(["US", "EU"], var.amplitude_region)
+    error_message = "Amplitude region must be US or EU."
+  }
 }
 
 variable "secret_ids" {
 
-  description = "Existing Secret Manager secret names keyed by DATABASE_URL, SESSION_SECRET, RUNNER_TOKEN, OPERATIONS_TOKEN; optionally GEMINI_API_KEY and GA4_API_SECRET. Never pass secret values."
+  description = "Existing Secret Manager secret names keyed by DATABASE_URL, SESSION_SECRET, RUNNER_TOKEN, OPERATIONS_TOKEN; optionally GEMINI_API_KEY, GA4_API_SECRET and AMPLITUDE_API_KEY. Never pass secret values."
   type        = map(string)
   validation {
     condition     = alltrue([for k in ["DATABASE_URL", "SESSION_SECRET", "RUNNER_TOKEN", "OPERATIONS_TOKEN"] : contains(keys(var.secret_ids), k)])
@@ -172,10 +181,11 @@ resource "google_cloud_run_v2_service" "api" {
 
       dynamic "env" {
         for_each = merge({
-          ADMIN_EMAILS       = join(",", var.admin_emails),
-          GA4_MEASUREMENT_ID = var.ga4_measurement_id,
-          REDASH_URL         = var.redash_url,
-          WEB_ORIGIN         = var.web_origin, GOOGLE_CLIENT_ID = var.google_client_id, TRACE_BUCKET = google_storage_bucket.traces.name, BACKGROUND_WORKER = "false", SCHEDULER_AUDIENCE = var.web_origin, SCHEDULER_EMAIL = google_service_account.scheduler.email, LLM_PROVIDER = "gemini", GEMINI_MODEL = "gemini-3.8-flash", GEMINI_BACKEND = "vertex-express", DATABASE_SCHEMA = "algostep", DATABASE_SSL_CA = "/app/certs/supabase-ca.crt", GCP_PROJECT = var.project_id, WORKER_AUTOSCALE = tostring(var.enable_workers), WORKER_ZONE = var.worker_zone, WORKER_NAMES = "algostep-worker-1,algostep-worker-2", WORKER_IDLE_SECONDS = "900", RUNNER_SLOTS_PER_HOST = "2"
+          ADMIN_EMAILS          = join(",", var.admin_emails),
+          GA4_MEASUREMENT_ID    = var.ga4_measurement_id,
+          AMPLITUDE_PROJECT_URL = var.amplitude_project_url,
+          AMPLITUDE_REGION      = var.amplitude_region,
+          WEB_ORIGIN            = var.web_origin, GOOGLE_CLIENT_ID = var.google_client_id, TRACE_BUCKET = google_storage_bucket.traces.name, BACKGROUND_WORKER = "false", SCHEDULER_AUDIENCE = var.web_origin, SCHEDULER_EMAIL = google_service_account.scheduler.email, LLM_PROVIDER = "gemini", GEMINI_MODEL = "gemini-3.8-flash", GEMINI_BACKEND = "vertex-express", DATABASE_SCHEMA = "algostep", DATABASE_SSL_CA = "/app/certs/supabase-ca.crt", GCP_PROJECT = var.project_id, WORKER_AUTOSCALE = tostring(var.enable_workers), WORKER_ZONE = var.worker_zone, WORKER_NAMES = "algostep-worker-1,algostep-worker-2", WORKER_IDLE_SECONDS = "900", RUNNER_SLOTS_PER_HOST = "2"
           }
         )
         content {

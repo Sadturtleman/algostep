@@ -58,4 +58,4 @@
 
 ## 비즈니스 분석 확장 (2026-09-20)
 
-36종 이벤트 원장과 GA4 Measurement Protocol 전송 outbox, Redash 조회 전용 뷰 7개/쿼리 13개/연결 스크립트를 구현했다. 관리자 화면에서 설정 및 전송 상태를 확인한다. GA4 측정 ID·API Secret 및 Redash 주소·권한은 확인 대기이며 외부 연결 완료 상태가 아니다. [연결 절차 및 한계](analytics-integrations.md)를 참고한다.
+36종 이벤트 원장과 GA4·Amplitude 독립 전송 큐를 구현했다. 관리자 화면은 공급자별 설정·전송 상태를 표시한다. GA4 계정과 웹 스트림은 생성됐으며, 사용자 데이터 수집 확인과 두 서비스의 키 생성·연결 승인을 기다리고 있다. 이번 Amplitude 변경은 아직 배포 전이다. [연결 절차 및 한계](analytics-integrations.md)를 참고한다.
