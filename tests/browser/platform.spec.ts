@@ -330,6 +330,12 @@ test("home groups all topics by type without priority labels and supports search
     .click();
   await expect(
     page.getByRole("button", { name: "다른 문제 살펴보기" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("FFT로 다항식 곱하기", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "코드로 풀기", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "이해했어요. 퀴즈 풀기" }),
@@ -395,6 +401,22 @@ test("every concept includes a concrete purpose and application before the quiz 
     await expect(
       page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
     ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "직접 풀어보기", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "코드로 풀기", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/연습 문제를 준비 중/)).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "이해 확인으로 돌아가기", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
+      .click();
     await page.getByRole("button", { name: "학습 목록", exact: true }).click();
   }
 });

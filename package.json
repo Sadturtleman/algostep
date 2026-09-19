@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test apps/server/test/*.test.ts apps/runner/test/*.test.ts",
     "test:e2e": "playwright test",
+    "test:references": "tsx scripts/verify-practice.ts",
     "check": "npm run typecheck && npm test && npm run build",
     "format": "prettier --write apps tests playwright.config.ts package.json tsconfig.json"
   },
