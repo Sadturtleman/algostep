@@ -59,12 +59,14 @@ export function DiagramCanvas({
   nodes,
   edges = [],
   label,
-  responsiveFit = false,
+  responsiveFit = true,
+  onSelect,
 }: {
   nodes: DiagramNode[];
   edges?: DiagramEdge[];
   label: string;
   responsiveFit?: boolean;
+  onSelect?: (id: string) => void;
 }) {
   const [moved, setMoved] = useState<Record<string, { x: number; y: number }>>(
       {},
@@ -75,6 +77,7 @@ export function DiagramCanvas({
     svg = useRef<SVGSVGElement>(null),
     viewport = useRef<HTMLDivElement>(null);
   const marker = useId().replace(/:/g, "");
+  const pointerStart = useRef({ x: 0, y: 0 });
   const positioned = nodes.map((n, i) => {
     const defaultPos =
       layout === "circle"
@@ -286,10 +289,22 @@ export function DiagramCanvas({
               className="diagram-node"
               role="button"
               tabIndex={0}
-              aria-label={`${n.label}${n.detail ? " · " + n.detail : ""} 이동`}
+              aria-label={`${n.label}${n.detail ? " · " + n.detail : ""} ${onSelect ? "선택" : "이동"}`}
+              aria-pressed={onSelect ? n.state === "active" : undefined}
+              onClick={(e) => {
+                if (
+                  onSelect &&
+                  Math.hypot(
+                    e.clientX - pointerStart.current.x,
+                    e.clientY - pointerStart.current.y,
+                  ) < 6
+                )
+                  onSelect(n.id);
+              }}
               transform={`translate(${n.x} ${n.y})`}
               data-node-id={n.id}
               onPointerDown={(e) => {
+                pointerStart.current = { x: e.clientX, y: e.clientY };
                 const p = point(e);
                 if (!p) return;
                 e.currentTarget.setPointerCapture(e.pointerId);
@@ -323,6 +338,11 @@ export function DiagramCanvas({
                 drag.current = null;
               }}
               onKeyDown={(e) => {
+                if (onSelect && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  onSelect(n.id);
+                  return;
+                }
                 const delta: Record<string, number[]> = {
                   ArrowLeft: [-12, 0],
                   ArrowRight: [12, 0],
@@ -361,9 +381,16 @@ export function DiagramCanvas({
                   className={`node ${n.state ?? ""}`}
                 />
               ) : (
-                <circle r="26" className={`node ${n.state ?? ""}`} />
+                <circle
+                  r={onSelect ? Math.max(26, 24 / zoom) : 26}
+                  className={`node ${n.state ?? ""}`}
+                />
               )}
-              <text textAnchor="middle" y={n.detail ? -3 : 5}>
+              <text
+                textAnchor="middle"
+                y={n.detail ? -3 : 5}
+                style={onSelect ? { fontSize: 14 / zoom } : undefined}
+              >
                 {n.label.length > 22 ? n.label.slice(0, 21) + "…" : n.label}
               </text>
               {n.detail && (

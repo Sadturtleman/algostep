@@ -155,19 +155,6 @@ test("expanded quizzes and movable diagrams retain positions across steps", asyn
   await authenticate(page);
   await page.goto("/");
   await page.getByRole("button", { name: /너비 우선 탐색/ }).click();
-  await expect(page.getByText(/문항 1 \/ 3/)).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
-    .click();
-  await expect(page.getByText(/문항 1 \/ 3/)).toBeVisible();
-  await page.getByRole("button", { name: "다음 문항", exact: true }).click();
-  await expect(page.getByText(/0의 이웃이/)).toBeVisible();
-  await page.getByRole("button", { name: "1 [0,1,2,3]", exact: true }).click();
-  await page.getByRole("button", { name: "정답 확인", exact: true }).click();
-  await expect(page.getByText("정답이에요!", { exact: true })).toBeVisible();
-  await page
-    .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
-    .click();
   await page.getByLabel("예제 선택", { exact: true }).selectOption("1");
   const node = page.locator('.diagram-node[data-node-id="0"]').first();
   await node.scrollIntoViewIfNeeded();
@@ -222,124 +209,11 @@ test("login gate, theme and setup state", async ({ page }) => {
     fullPage: true,
   });
 });
-test("learning, quizzes and graph/tree explanatory diagrams", async ({
-  page,
-}) => {
-  await authenticate(page);
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "개념별 학습" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: /너비 우선 탐색/ }).click();
-  await expect(
-    page.getByRole("img", { name: "그래프의 현재 방문 상태" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "다음 단계" }).click();
-  await page
-    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
-    .click();
-  await page.getByRole("button", { name: "2 큐에 넣을 때" }).click();
-  await page.getByRole("button", { name: "정답 확인" }).click();
-  await expect(page.getByText("정답이에요!")).toBeVisible();
-  await page.screenshot({
-    path: "test-results/graph-lesson.png",
-    fullPage: true,
-  });
-  await page
-    .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
-    .click();
-  await page.getByRole("button", { name: "학습 목록" }).click();
-  await page.getByRole("button", { name: /이진 트리 순회/ }).click();
-  await expect(
-    page.getByRole("img", { name: "이진 트리와 현재 노드" }),
-  ).toBeVisible();
-});
 test("workspace autosaves and queues a real request without fabricated execution", async ({
   page,
 }) => {
   await authenticate(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "문제 풀기", exact: true }).click();
-  const before = (await (await page.request.get("/api/records")).json()).records
-    .length;
-  await page
-    .getByRole("article")
-    .filter({ hasText: "정렬된 배열에서 값 찾기" })
-    .getByRole("button", { name: "개념과 예제 보기" })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "기본 개념", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "개념을 한 단계씩", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("main.py", { exact: true })).toHaveCount(0);
-  expect(
-    (await (await page.request.get("/api/records")).json()).records.length,
-  ).toBe(before);
-  const concept = await page.locator(".lesson-layout .prose").boundingBox(),
-    example = await page.locator(".lesson-example-column").boundingBox();
-  expect(concept!.x + concept!.width).toBeLessThan(example!.x);
-  expect(Math.abs(concept!.y - example!.y)).toBeLessThan(2);
-  await page.screenshot({
-    path: "test-results/learning-before-coding.png",
-    fullPage: true,
-  });
-  await page
-    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "기본 개념", exact: true }),
-  ).toHaveCount(0);
-  await expect(page.getByLabel("예제 선택", { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "이진 탐색 이해 확인", exact: true }),
-  ).toBeVisible();
-  expect(
-    (await (await page.request.get("/api/records")).json()).records.length,
-  ).toBe(before);
-  await page.screenshot({
-    path: "test-results/separate-practice-screen.png",
-    fullPage: true,
-  });
-  await expect(
-    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", {
-      name: "이해했다면, 직접 풀어볼까요?",
-      exact: true,
-    }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "코드로 풀기", exact: true }),
-  ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "직접 풀어보기", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", {
-      name: "이해했다면, 직접 풀어볼까요?",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: "test-results/separate-coding-screen.png",
-    fullPage: true,
-  });
-  await page
-    .getByRole("button", { name: "이해 확인으로 돌아가기", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "직접 풀어보기", exact: true })
-    .click();
-  await page.getByRole("button", { name: "코드로 풀기", exact: true }).click();
+  await page.goto("/learn/binary-search/code");
   await expect(page.getByText("main.py", { exact: true })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "권장 코드 불러오기" }).click();
@@ -397,30 +271,9 @@ test("home groups all topics by type without priority labels and supports search
   await expect(
     page.getByRole("button", { name: "다른 문제 살펴보기" }),
   ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "직접 풀어보기", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", { name: "다른 문제 살펴보기" }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByText("FFT로 다항식 곱하기", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "코드로 풀기", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "이해했어요. 퀴즈 풀기" }),
-  ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "이해 확인으로 돌아가기", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
-    .click();
+  await page.getByRole("link", { name: "03 코드 작성" }).click();
+  await expect(page.getByText("main.py", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "01 개념 이해" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
     page.getByRole("region", { name: "개념에서 문제로" }),
@@ -438,9 +291,9 @@ test("home groups all topics by type without priority labels and supports search
     fullPage: true,
   });
   await page
-    .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
+    .getByRole("button", { name: "다음 상태 예측하기", exact: true })
     .click();
-  await expect(page.getByText(/문항 1 \/ 3/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /현재 상태/ })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "코드로 풀기", exact: true }),
   ).toHaveCount(0);
@@ -477,20 +330,16 @@ test("every concept includes a concrete purpose and application before the quiz 
       page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
     ).toHaveCount(0);
     await page
-      .getByRole("button", { name: "이해했어요. 퀴즈 풀기", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "직접 풀어보기", exact: true })
+      .getByRole("button", { name: "다음 상태 예측하기", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "코드로 풀기", exact: true }),
+      page.getByRole("heading", { name: /현재 상태/ }),
     ).toBeVisible();
-    await expect(page.getByText(/연습 문제를 준비 중/)).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "03 코드 작성" }),
+    ).toHaveAttribute("href", `/learn/${topic.id}/code`);
     await page
-      .getByRole("button", { name: "이해 확인으로 돌아가기", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "개념과 예제로 돌아가기", exact: true })
+      .getByRole("button", { name: "개념 설명으로", exact: true })
       .click();
     await page.getByRole("button", { name: "학습 목록", exact: true }).click();
   }
@@ -523,7 +372,7 @@ test("mobile offers lessons and quizzes, not coding navigation", async ({
   ).toBeVisible();
   await mobileNav.getByRole("button", { name: "퀴즈", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+    page.getByRole("heading", { name: /다음 상태를 예측해요/ }),
   ).toBeVisible();
   await mobileNav.getByRole("button", { name: "홈", exact: true }).click();
   await expect(

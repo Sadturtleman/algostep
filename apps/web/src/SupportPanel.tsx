@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, post } from "./api.js";
+import { go } from "./router.js";
 export const ticketLabels: Record<string, string> = {
   OPEN: "접수",
   IN_PROGRESS: "처리 중",
@@ -36,7 +37,13 @@ export function Pager({
     </div>
   );
 }
-export function SupportPanel({ admin = false }: { admin?: boolean }) {
+export function SupportPanel({
+  admin = false,
+  inquiryId = "",
+}: {
+  admin?: boolean;
+  inquiryId?: string;
+}) {
   const [data, setData] = useState<any>(null),
     [page, setPage] = useState(1),
     [status, setStatus] = useState(""),
@@ -53,9 +60,13 @@ export function SupportPanel({ admin = false }: { admin?: boolean }) {
     let current = true;
     setData(null);
     setError("");
-    api(`${endpoint}?page=${page}${status ? "&status=" + status : ""}`)
+    api(
+      inquiryId
+        ? `/support/${inquiryId}`
+        : `${endpoint}?page=${page}${status ? "&status=" + status : ""}`,
+    )
       .then((d) => {
-        if (current) setData(d);
+        if (current) setData(inquiryId ? { rows: [d], hasMore: false } : d);
       })
       .catch((e) => {
         if (current) setError(e.message);
@@ -63,9 +74,14 @@ export function SupportPanel({ admin = false }: { admin?: boolean }) {
     return () => {
       current = false;
     };
-  }, [endpoint, page, status, revision]);
+  }, [endpoint, page, status, revision, inquiryId]);
   return (
     <section className="dashboard support-panel">
+      {inquiryId && (
+        <button className="secondary" onClick={() => go("/support")}>
+          문의 목록으로
+        </button>
+      )}
       <div className="dashboard-heading">
         <div>
           <span className="eyebrow">
@@ -92,7 +108,7 @@ export function SupportPanel({ admin = false }: { admin?: boolean }) {
           {notice}
         </p>
       )}
-      {!admin && (
+      {!admin && !inquiryId && (
         <form
           className="dashboard-panel dashboard-form"
           onSubmit={async (e) => {
@@ -212,6 +228,14 @@ function Ticket({
     <article className="dashboard-panel ticket">
       <div className="dashboard-heading">
         <h2>{t.subject}</h2>
+        {!admin && (
+          <button
+            className="text-button"
+            onClick={() => go(`/support/${t.id}`)}
+          >
+            문의 상세
+          </button>
+        )}
         <span className="badge">{ticketLabels[t.status]}</span>
       </div>
       <small>

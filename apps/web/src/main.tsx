@@ -4,7 +4,8 @@ import {
   initializeGoogleTag,
   flushAnalytics,
 } from "./analytics.js";
-import { QuizPanel } from "./QuizPanel.js";
+import { useLocation, readRoute, go } from "./router.js";
+import { LearningSteps, ExampleAnimation, Prediction } from "./LearningFlow.js";
 import { AdminDashboard } from "./AdminDashboard.js";
 import { SupportPanel } from "./SupportPanel.js";
 import { conceptUses } from "./concept-uses.js";
@@ -42,15 +43,15 @@ const Editor = lazy(() => import("./CodeEditor.js"));
 const labels: any = { python: "Python 3.10", cpp: "C++20", java: "Java 21" };
 const nativeAndroid = !!window.AlgostepNative;
 function App() {
+  const locationPath = useLocation();
+  const route = readRoute(locationPath);
+  const page = route.page;
   const [config, setConfig] = useState<any>(null),
     [user, setUser] = useState<any>(null),
     [loading, setLoading] = useState(true),
-    [page, setPage] = useState("home"),
     [topics, setTopics] = useState<any[]>([]),
     [problems, setProblems] = useState<any[]>([]),
     [records, setRecords] = useState<any[]>([]),
-    [topic, setTopic] = useState<any>(null),
-    [practiceId, setPracticeId] = useState<string | null>(null),
     [record, setRecord] = useState<any>(null),
     [source, setSource] = useState(""),
     [language, setLanguage] = useState("python"),
@@ -67,7 +68,7 @@ function App() {
     [busy, setBusy] = useState(false),
     [input, setInput] = useState(""),
     [testIndex, setTestIndex] = useState(0),
-    [tab, setTab] = useState("visual"),
+    [tab, setTabState] = useState("visual"),
     [notice, setNotice] = useState("");
   const googleRef = useRef<HTMLDivElement>(null),
     identityRef = useRef<string | null>(null),
@@ -78,6 +79,146 @@ function App() {
     runKey = useRef<string | null>(null),
     reviewKey = useRef<string | null>(null);
   const shownExecutionErrors = useRef(new Set<string>());
+  const setTab = (next: string) => {
+    setTabState(next);
+    const url = new URL(location.href);
+    url.searchParams.set("view", next);
+    go(url.pathname + url.search);
+  };
+  useEffect(() => {
+    const value = new URL(location.href).searchParams.get("view");
+    setTabState(
+      route.reviewId
+        ? "review"
+        : ["visual", "tests", "analysis", "review"].includes(value ?? "")
+          ? value!
+          : "visual",
+    );
+  }, [locationPath]);
+  const topic =
+    topics.find((t) => t.id === route.topicId) ??
+    (page === "workspace"
+      ? topics.find(
+          (t) =>
+            t.id ===
+            problems.find((p) => p.id === record?.problem_id)?.topic_id,
+        )
+      : null);
+  const practiceId = route.problemId;
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [routeRetry, setRouteRetry] = useState(0);
+  const workspaceKey = [
+    page,
+    route.topicId,
+    route.recordId,
+    route.problemId,
+  ].join(":");
+  const pendingRecords = useRef(new Map<string, Promise<any>>());
+  const transition = (path: string) => {
+    void save()
+      .then(() => go(path))
+      .catch(fail);
+  };
+  const setPage = (next: string) => {
+    const id = topic?.id ?? "binary-search";
+    transition(
+      {
+        home: "/learn",
+        problems: "/problems",
+        history: "/records",
+        support: "/support",
+        admin: "/admin",
+        lesson: `/learn/${id}/concept`,
+        practice: `/learn/${id}/predict/1`,
+        challenges: `/learn/${id}/code`,
+      }[next as "home"] ?? "/learn",
+    );
+  };
+  useEffect(() => {
+    // Also flush pending editor changes for native browser Back/Forward and stage links.
+    void save().catch(fail);
+  }, [locationPath]);
+  useEffect(() => {
+    if (!user || loading || page !== "workspace" || mobile) {
+      setWorkspaceReady(false);
+      return;
+    }
+    let active = true;
+    setWorkspaceReady(false);
+    void (async () => {
+      await save();
+      const problemId =
+        route.problemId ??
+        problems.find((p) => p.topic_id === route.topicId)?.id;
+      if (!route.recordId && !problemId)
+        throw new ApiError("NOT_FOUND", "문제를 찾을 수 없어요.", 404);
+      if (
+        problemId &&
+        (!problems.some((p) => p.id === problemId) ||
+          (route.topicId &&
+            !problems.some(
+              (p) => p.id === problemId && p.topic_id === route.topicId,
+            )))
+      )
+        throw new ApiError(
+          "NOT_FOUND",
+          "이 개념에 해당하는 문제가 아니에요.",
+          404,
+        );
+      const key = `${user.id}:${route.recordId || problemId}`;
+      let request = pendingRecords.current.get(key);
+      if (!request) {
+        request = route.recordId
+          ? api(`/records/${route.recordId}`)
+          : api("/records").then(async (data) => {
+              const existing = data.records.find(
+                (r: any) => r.problem_id === problemId,
+              );
+              const r =
+                existing ??
+                (await post("/records", { problemId, language: "python" }));
+              return api(`/records/${r.id}`);
+            });
+        pendingRecords.current.set(key, request);
+      }
+      const r = await request;
+      pendingRecords.current.delete(key);
+      if (!active) return;
+      if (
+        (problemId && r.problem_id !== problemId) ||
+        (route.topicId &&
+          !problems.some(
+            (p) => p.id === r.problem_id && p.topic_id === route.topicId,
+          ))
+      )
+        throw new ApiError("NOT_FOUND", "기록과 문제가 일치하지 않아요.", 404);
+      recordRef.current = r;
+      lastSaved.current = { source: r.source, language: r.language };
+      codeRef.current = { ...lastSaved.current };
+      setRecord(r);
+      setSource(r.source);
+      setLanguage(r.language);
+      setSaveStatus("저장됨");
+      setInput(
+        problems.find((p) => p.id === r.problem_id)?.tests[0]?.input ?? "",
+      );
+      setTestIndex(0);
+      runKey.current = null;
+      reviewKey.current = null;
+      if (!route.recordId) {
+        const url = new URL(location.href);
+        url.searchParams.set("record", r.id);
+        go(url.pathname + url.search, true);
+      } else setWorkspaceReady(true);
+    })().catch((e) => {
+      pendingRecords.current.clear();
+      if (active) fail(e);
+    });
+    return () => {
+      active = false;
+    };
+  }, [workspaceKey, user?.id, loading, mobile, routeRetry]);
+
   useEffect(() => {
     setAnalyticsUser(user?.id ?? null);
     if (user?.analyticsId)
@@ -87,7 +228,7 @@ function App() {
       );
   }, [user?.id, user?.analyticsId, config?.ga4MeasurementId]);
   useEffect(() => {
-    if (!user) return;
+    if (!user || page === "not-found") return;
     const screen =
       mobile &&
       ["workspace", "problems", "history", "challenges"].includes(page)
@@ -246,7 +387,7 @@ function App() {
                 recordRef.current = null;
                 setRecord(null);
                 setSource("");
-                setPage("home");
+                if (location.pathname === "/login") go("/learn", true);
                 codeRef.current = { source: "", language: "python" };
                 lastSaved.current = { ...codeRef.current };
               }
@@ -281,6 +422,14 @@ function App() {
       );
   }, [user, config, loading, theme]);
   function editCode(value: string, lang = language) {
+    if (value === codeRef.current.source && lang === codeRef.current.language) {
+      if (
+        value === lastSaved.current.source &&
+        lang === lastSaved.current.language
+      )
+        setSaveStatus("저장됨");
+      return;
+    }
     codeRef.current = { source: value, language: lang };
     setSource(value);
     setLanguage(lang);
@@ -344,7 +493,7 @@ function App() {
     return () => removeEventListener("beforeunload", handler);
   }, []);
   useEffect(() => {
-    if (!record?.id || !user || error) return;
+    if (!record?.id || !user || error || page !== "workspace") return;
     const timer = setInterval(async () => {
       try {
         const fresh = await api(`/records/${record.id}`);
@@ -386,24 +535,10 @@ function App() {
       }
     }, 2200);
     return () => clearInterval(timer);
-  }, [record?.id, user, error]);
+  }, [record?.id, user, error, page]);
   const openRecord = async (id: string) => {
     await save();
-    const r = await api(`/records/${id}`);
-    recordRef.current = r;
-    lastSaved.current = { source: r.source, language: r.language };
-    codeRef.current = { ...lastSaved.current };
-    setRecord(r);
-    setSource(r.source);
-    setLanguage(r.language);
-    setSaveStatus("저장됨");
-    setPage("workspace");
-    setInput(
-      problems.find((p) => p.id === r.problem_id)?.tests[0]?.input ?? "",
-    );
-    setTestIndex(0);
-    runKey.current = null;
-    reviewKey.current = null;
+    go(`/records/${id}`);
   };
   const navigate = async (next: string) => {
     try {
@@ -664,6 +799,7 @@ function App() {
                     await loadData();
                     if (saveStatus === "저장 실패") await save();
                   }
+                  setRouteRetry((value) => value + 1);
                   setError(null);
                 } catch (e) {
                   fail(e);
@@ -791,7 +927,7 @@ function App() {
     );
   const actualPage =
     mobile && ["workspace", "problems", "history", "challenges"].includes(page)
-      ? "home"
+      ? "mobile-restricted"
       : page;
   const groups = groupLearningTopics(topics, filter);
   const relatedProblems = topic
@@ -803,31 +939,67 @@ function App() {
     nextTopic: any,
     selectedProblem: string | null = null,
   ) => {
-    setTopic(nextTopic);
-    setPracticeId(selectedProblem);
-    setPage("lesson");
-    window.scrollTo(0, 0);
+    if (nextTopic)
+      transition(
+        `/learn/${nextTopic.id}/concept${selectedProblem ? "?problem=" + encodeURIComponent(selectedProblem) : ""}`,
+      );
   };
   const startPractice = async (problemId: string) => {
-    setBusy(true);
-    try {
-      const r = await post("/records", { problemId, language: "python" });
-      await openRecord(r.id);
-      window.scrollTo(0, 0);
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
+    await save();
+    go(`/problems/${encodeURIComponent(problemId)}`);
   };
   return (
     <>
       {header}
       <main>
-        {actualPage === "admin" && user.isAdmin && !nativeAndroid && (
-          <AdminDashboard />
+        {topic && ["lesson", "practice", "workspace"].includes(actualPage) && (
+          <LearningSteps
+            topic={topic.id}
+            stage={
+              actualPage === "lesson" ? 0 : actualPage === "practice" ? 1 : 2
+            }
+            mobile={mobile}
+          />
         )}
-        {actualPage === "support" && <SupportPanel />}
+        {(actualPage === "not-found" || (route.topicId && !topic)) && (
+          <section className="panel empty">
+            <h1>페이지를 찾을 수 없어요</h1>
+            <p>주소를 확인하거나 학습 목록에서 다시 시작하세요.</p>
+            <button onClick={() => setPage("home")}>학습 목록으로</button>
+          </section>
+        )}
+        {page === "workspace" && mobile && (
+          <section className="panel">
+            <h1>코드 작성은 PC 웹에서 이용해 주세요</h1>
+            <button
+              onClick={() =>
+                go(`/learn/${route.topicId || "binary-search"}/concept`)
+              }
+            >
+              개념 학습으로
+            </button>
+          </section>
+        )}
+        {actualPage === "workspace" && !workspaceReady && (
+          <section className="panel" role="status">
+            저장한 코드를 불러오고 있어요…
+          </section>
+        )}
+        {actualPage === "admin" && (!user.isAdmin || nativeAndroid) && (
+          <section className="panel">
+            <h1>관리자 권한이 필요해요</h1>
+            <button onClick={() => setPage("home")}>학습 목록으로</button>
+          </section>
+        )}
+        {actualPage === "admin" && user.isAdmin && !nativeAndroid && (
+          <AdminDashboard
+            section={route.section}
+            onNavigate={(section) => transition(`/admin/${section}`)}
+          />
+        )}
+        {actualPage === "support" && (
+          <SupportPanel inquiryId={route.inquiryId} />
+        )}
         {notice && (
           <div className="notice" role="status">
             {notice}
@@ -980,7 +1152,7 @@ function App() {
               <h1>{topic.title}</h1>
               <p>
                 {mobile
-                  ? "기본 개념과 예제 동작을 함께 살펴보고, 퀴즈로 이해를 확인하세요."
+                  ? "기본 개념과 예제 동작을 함께 살펴보고, 다음 상태를 예측해 이해를 확인하세요."
                   : "기본 개념과 예제 동작을 함께 살펴보고, 이해했다면 문제에 적용해 보세요."}
               </p>
             </div>
@@ -1004,7 +1176,16 @@ function App() {
                 )}
               </article>
               <div className="lesson-example-column">
-                <LessonDiagram topic={topic.id} />
+                <ExampleAnimation
+                  key={topic.id}
+                  topic={topic.id}
+                  title={topic.title}
+                  theme={theme}
+                />
+                <details className="manual-example" open>
+                  <summary>단계별 예제 직접 살펴보기</summary>
+                  <LessonDiagram topic={topic.id} />
+                </details>
               </div>
             </div>
             <div className="lesson-next-screen">
@@ -1018,107 +1199,19 @@ function App() {
                   window.scrollTo(0, 0);
                 }}
               >
-                이해했어요. 퀴즈 풀기 <ArrowRight size={18} />
+                다음 상태 예측하기 <ArrowRight size={18} />
               </button>
             </div>
           </>
         )}
         {actualPage === "practice" && topic && (
-          <>
-            <button
-              className="text-button"
-              onClick={() => {
-                setPage("lesson");
-                window.scrollTo(0, 0);
-              }}
-            >
-              <ArrowLeft size={16} />
-              개념과 예제로 돌아가기
-            </button>
-            <div className="page-heading">
-              <span className="badge">
-                {learningCategory(topic)} · 이해 확인
-              </span>
-              <h1>{topic.title} 이해 확인</h1>
-              <p>퀴즈로 배운 내용을 확인하세요.</p>
-            </div>
-            <div className="lesson-followup">
-              <QuizPanel key={topic.id} topic={topic} onError={fail} />
-            </div>
-            {!mobile && (
-              <div className="lesson-next-screen">
-                <p>코드로 적용해 볼 준비가 됐다면 다음 화면으로 이동하세요.</p>
-                <button
-                  onClick={() => {
-                    setPage("challenges");
-                    window.scrollTo(0, 0);
-                  }}
-                >
-                  직접 풀어보기 <ArrowRight size={18} />
-                </button>
-              </div>
-            )}
-          </>
-        )}
-        {actualPage === "challenges" && topic && !mobile && (
-          <>
-            <button
-              className="text-button"
-              onClick={() => {
-                setPage("practice");
-                window.scrollTo(0, 0);
-              }}
-            >
-              <ArrowLeft size={16} />
-              이해 확인으로 돌아가기
-            </button>
-            <div className="page-heading">
-              <span className="badge">
-                {learningCategory(topic)} · 코드 연습
-              </span>
-              <h1>{topic.title}</h1>
-            </div>
-            <section
-              className="panel practice-next"
-              aria-label="개념에서 문제로"
-            >
-              <span className="eyebrow">03 · 적용하기</span>
-              <h2>이해했다면, 직접 풀어볼까요?</h2>
-              <p>문제를 선택하고 배운 개념을 코드로 구현해 보세요.</p>
-              {relatedProblems.map((p) => (
-                <article className="practice-choice" key={p.id}>
-                  <h3>{p.title}</h3>
-                  <p>{p.statement}</p>
-                  <small>
-                    공개 테스트 {p.tests.length}개 · Python / C++ / Java
-                  </small>
-                  <button
-                    disabled={busy}
-                    onClick={() => void startPractice(p.id)}
-                  >
-                    코드로 풀기 <ArrowRight size={18} />
-                  </button>
-                </article>
-              ))}
-              {relatedProblems.length === 0 && (
-                <>
-                  <p>
-                    이 개념의 코드 작성 문제는 아직 준비 중이에요. 예제와 퀴즈로
-                    학습하거나 다른 문제를 살펴볼 수 있어요.
-                  </p>
-                  <button
-                    className="secondary"
-                    onClick={() => {
-                      setPage("problems");
-                      window.scrollTo(0, 0);
-                    }}
-                  >
-                    다른 문제 살펴보기 <ArrowRight size={18} />
-                  </button>
-                </>
-              )}
-            </section>
-          </>
+          <Prediction
+            key={`${user.id}-${topic.id}-${route.step}`}
+            topic={topic}
+            step={route.step}
+            userId={user.id}
+            mobile={mobile}
+          />
         )}
         {actualPage === "problems" && (
           <>
@@ -1168,7 +1261,7 @@ function App() {
             </div>
           </>
         )}
-        {actualPage === "workspace" && record && problem && (
+        {actualPage === "workspace" && workspaceReady && record && problem && (
           <>
             <div className="workspace-heading">
               <div>
@@ -1508,35 +1601,54 @@ function App() {
                     KST 매월 1일 초기화 · 이월 없음 · 추가 구매는 가격 확정 후
                     제공
                   </p>
-                  {record.reviews?.map((r: any) => (
-                    <article className="review" key={r.id}>
-                      <span className="badge">{r.status}</span>
-                      <small>
-                        {new Date(r.created_at).toLocaleString("ko-KR")}
-                      </small>
-                      {r.status === "FAILED" && (
-                        <p>
-                          리뷰를 완료하지 못했어요. 이용량은 차감되지 않았어요.
-                        </p>
-                      )}
-                      {r.result && (
-                        <>
-                          <h4>논리 오류</h4>
-                          <p className="pre-wrap">{r.result.logicalErrors}</p>
-                          <h4>효율 개선</h4>
-                          <p className="pre-wrap">
-                            {r.result.efficiencyImprovements}
+                  {route.reviewId &&
+                    !record.reviews?.some(
+                      (r: any) => r.id === route.reviewId,
+                    ) && <p role="alert">리뷰를 찾을 수 없어요.</p>}
+                  {record.reviews
+                    ?.filter(
+                      (r: any) => !route.reviewId || r.id === route.reviewId,
+                    )
+                    .map((r: any) => (
+                      <article className="review" key={r.id}>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            transition(`/records/${record.id}/reviews/${r.id}`)
+                          }
+                        >
+                          리뷰 상세 보기
+                        </button>
+                        <span className="badge">{r.status}</span>
+                        <small>
+                          {new Date(r.created_at).toLocaleString("ko-KR")}
+                        </small>
+                        {r.status === "FAILED" && (
+                          <p>
+                            리뷰를 완료하지 못했어요. 이용량은 차감되지
+                            않았어요.
                           </p>
-                          <h4>대안 코드</h4>
-                          <pre>{r.result.alternativeCode}</pre>
-                        </>
-                      )}
-                      <details>
-                        <summary>리뷰 당시 코드 · {labels[r.language]}</summary>
-                        <pre>{r.source}</pre>
-                      </details>
-                    </article>
-                  ))}
+                        )}
+                        {r.result && (
+                          <>
+                            <h4>논리 오류</h4>
+                            <p className="pre-wrap">{r.result.logicalErrors}</p>
+                            <h4>효율 개선</h4>
+                            <p className="pre-wrap">
+                              {r.result.efficiencyImprovements}
+                            </p>
+                            <h4>대안 코드</h4>
+                            <pre>{r.result.alternativeCode}</pre>
+                          </>
+                        )}
+                        <details>
+                          <summary>
+                            리뷰 당시 코드 · {labels[r.language]}
+                          </summary>
+                          <pre>{r.source}</pre>
+                        </details>
+                      </article>
+                    ))}
                 </>
               )}
             </section>
@@ -1627,7 +1739,6 @@ function App() {
           <button
             className={actualPage === "practice" ? "nav active" : "nav"}
             onClick={() => {
-              setTopic(topic ?? topics.find((t) => t.id === "binary-search"));
               setPage("practice");
               window.scrollTo(0, 0);
             }}
