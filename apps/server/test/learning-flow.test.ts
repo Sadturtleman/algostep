@@ -1,3 +1,4 @@
+import { safeEventProperties } from "../src/event-catalog.js";
 import { conceptCost } from "../../web/src/concept-costs.js";
 import { focusedConcepts, practiceTopic } from "../src/focused-concepts.js";
 import test from "node:test";
@@ -67,4 +68,24 @@ test("200 curriculum entries are distinct and focused lessons have concrete work
     assert.ok(c.example.length > 35, c.id);
     assert.ok(/[0-9A-Z가-힣]/.test(c.example), c.id);
   }
+});
+
+test("billing screens and example-mode events fit the closed analytics vocabulary", () => {
+  for (const screen of ["plans", "checkout"])
+    assert.deepEqual(safeEventProperties("SCREEN_VIEWED", { screen }), {
+      screen,
+    });
+  assert.deepEqual(
+    safeEventProperties("EXAMPLE_MODE_SELECTED", {
+      topic: "array",
+      mode: "manual",
+    }),
+    { topic: "array", mode: "manual" },
+  );
+  assert.throws(() =>
+    safeEventProperties("EXAMPLE_MODE_SELECTED", {
+      topic: "array",
+      mode: "untrusted",
+    }),
+  );
 });

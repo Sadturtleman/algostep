@@ -14,6 +14,8 @@ const screen = z.enum([
   "history",
   "support",
   "admin",
+  "plans",
+  "checkout",
 ]);
 export const eventProperties = {
   USER_REGISTERED: z.object({ client: z.enum(["web", "android"]) }),
@@ -51,6 +53,10 @@ export const eventProperties = {
   CONTENT_PUBLISHED: z.object({ topics: small, problems: small }),
   SCREEN_VIEWED: z.object({ screen, topic: code.optional() }),
   EXAMPLE_SELECTED: z.object({ topic: code, index: small }),
+  EXAMPLE_MODE_SELECTED: z.object({
+    topic: code,
+    mode: z.enum(["animation", "manual"]),
+  }),
   EXAMPLE_APPLIED: z.object({
     topic: code,
     count: small,
@@ -103,6 +109,7 @@ export type BusinessEventType = keyof typeof eventProperties;
 export const clientEventTypes = [
   "SCREEN_VIEWED",
   "EXAMPLE_SELECTED",
+  "EXAMPLE_MODE_SELECTED",
   "EXAMPLE_APPLIED",
   "VISUALIZATION_CONTROL",
   "PREDICTION_CHECKED",

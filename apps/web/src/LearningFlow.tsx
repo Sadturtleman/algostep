@@ -67,6 +67,10 @@ export function ExampleAnimation({
   const [version, setVersion] = useState(0);
   const mode = theme === "dark" ? "dark" : "light";
   const [modeTab, setModeTab] = useState("animation");
+  const selectMode = (mode: string) => {
+    setModeTab(mode);
+    track("EXAMPLE_MODE_SELECTED", { topic, mode });
+  };
   return (
     <section className="panel example-animation">
       <h2>움직임으로 살펴보기</h2>
@@ -111,7 +115,7 @@ export function ExampleAnimation({
               aria-controls="example-content"
               tabIndex={modeTab === id ? 0 : -1}
               className={modeTab === id ? "active" : "secondary"}
-              onClick={() => setModeTab(id)}
+              onClick={() => selectMode(id)}
             >
               {label}
             </button>
