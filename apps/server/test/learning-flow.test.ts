@@ -1,3 +1,5 @@
+import { conceptCost } from "../../web/src/concept-costs.js";
+import { focusedConcepts, practiceTopic } from "../src/focused-concepts.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
@@ -9,8 +11,10 @@ import {
 import { conceptUses } from "../../web/src/concept-uses.js";
 import { readRoute } from "../../web/src/router.js";
 test("every published concept has answerable prediction checkpoints and animation assets", () => {
-  assert.equal(Object.keys(conceptUses).length, 47);
+  assert.equal(Object.keys(conceptUses).length, 200);
   for (const topic of Object.keys(conceptUses)) {
+    assert.equal(conceptCost(topic).length, 3);
+    assert.ok(conceptCost(topic).every((s) => s.length > 0));
     const checks = checkpoints(topic);
     assert.ok(checks.length, topic);
     for (const check of checks) {
@@ -25,7 +29,9 @@ test("every published concept has answerable prediction checkpoints and animatio
     for (const theme of ["light", "dark"])
       for (const ext of ["png", "gif"])
         assert.ok(
-          existsSync(`apps/web/public/learning/${topic}-${theme}.${ext}`),
+          existsSync(
+            `apps/web/public/learning/${practiceTopic(topic)}-${theme}.${ext}`,
+          ),
         );
   }
 });
@@ -49,4 +55,16 @@ test("routes reject malformed steps, extra segments and unknown admin sections",
     assert.equal(readRoute(path).page, "not-found");
   assert.equal(readRoute("/records/abc").recordId, "abc");
   assert.equal(readRoute("/learn/tree/code?record=abc").recordId, "abc");
+});
+
+test("200 curriculum entries are distinct and focused lessons have concrete worked cases", () => {
+  assert.equal(focusedConcepts.length, 153);
+  assert.equal(new Set(focusedConcepts.map((c) => c.id)).size, 153);
+  assert.equal(new Set(focusedConcepts.map((c) => c.title)).size, 153);
+  for (const c of focusedConcepts) {
+    assert.ok(conceptUses[c.parent], c.id);
+    assert.ok(c.principle.length > 25, c.id);
+    assert.ok(c.example.length > 35, c.id);
+    assert.ok(/[0-9A-Z가-힣]/.test(c.example), c.id);
+  }
 });

@@ -1,3 +1,4 @@
+import { practiceTopic } from "../../server/src/focused-concepts.js";
 const categories: [string, string[]][] = [
   ["기초와 설계", ["recursion", "prefix-sum", "greedy"]],
   [
@@ -58,7 +59,8 @@ const categories: [string, string[]][] = [
 ];
 export function learningCategory(topic: { id: string; category: string }) {
   return (
-    categories.find(([, ids]) => ids.includes(topic.id))?.[0] ?? topic.category
+    categories.find(([, ids]) => ids.includes(practiceTopic(topic.id)))?.[0] ??
+    topic.category
   );
 }
 export function groupLearningTopics<

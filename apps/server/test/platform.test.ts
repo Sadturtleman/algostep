@@ -458,7 +458,7 @@ test("quiz hides answer until submission and repeated request returns original r
 test("every topic has three distinct quizzes and extra answers remain server-only", async () => {
   const u = await login("expanded-quiz");
   const topics = (await request(u, "GET", "/api/topics")).json().topics;
-  assert.equal(topics.length, 47);
+  assert.equal(topics.length, 200);
   for (const topic of topics) {
     assert.equal(topic.quizzes.length, 3, topic.id);
     assert.equal(new Set(topic.quizzes.map((q: any) => q.question)).size, 3);

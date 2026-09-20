@@ -1,3 +1,4 @@
+import { practiceTopic } from "../apps/server/src/focused-concepts.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { conceptUses } from "../apps/web/src/concept-uses.js";
 import {
@@ -5,11 +6,13 @@ import {
   checkpoints,
 } from "../apps/web/src/prediction-model.js";
 mkdirSync("tmp/learning-v2", { recursive: true });
-const data = Object.keys(conceptUses).map((topic) => ({
-  topic,
-  frames: learningFrames(topic),
-  checkpoints: checkpoints(topic).length,
-}));
+const data = [...new Set(Object.keys(conceptUses).map(practiceTopic))].map(
+  (topic) => ({
+    topic,
+    frames: learningFrames(topic),
+    checkpoints: checkpoints(topic).length,
+  }),
+);
 if (data.some((x) => !x.frames.length || !x.checkpoints))
   throw new Error(
     JSON.stringify(
