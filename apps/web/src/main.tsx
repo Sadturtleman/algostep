@@ -1,3 +1,10 @@
+import { conceptCost } from "./concept-costs.js";
+import {
+  focusedById,
+  focusedConcepts,
+  practiceTopic,
+} from "../../server/src/focused-concepts.js";
+import { BillingScreens } from "./BillingScreens.js";
 import {
   track,
   setAnalyticsUser,
@@ -128,6 +135,7 @@ function App() {
         history: "/records",
         support: "/support",
         admin: "/admin",
+        plans: "/plans",
         lesson: `/learn/${id}/concept`,
         practice: `/learn/${id}/predict/1`,
         challenges: `/learn/${id}/code`,
@@ -149,7 +157,7 @@ function App() {
       await save();
       const problemId =
         route.problemId ??
-        problems.find((p) => p.topic_id === route.topicId)?.id;
+        problems.find((p) => p.topic_id === practiceTopic(route.topicId))?.id;
       if (!route.recordId && !problemId)
         throw new ApiError("NOT_FOUND", "문제를 찾을 수 없어요.", 404);
       if (
@@ -157,7 +165,9 @@ function App() {
         (!problems.some((p) => p.id === problemId) ||
           (route.topicId &&
             !problems.some(
-              (p) => p.id === problemId && p.topic_id === route.topicId,
+              (p) =>
+                p.id === problemId &&
+                p.topic_id === practiceTopic(route.topicId),
             )))
       )
         throw new ApiError(
@@ -188,7 +198,9 @@ function App() {
         (problemId && r.problem_id !== problemId) ||
         (route.topicId &&
           !problems.some(
-            (p) => p.id === r.problem_id && p.topic_id === route.topicId,
+            (p) =>
+              p.id === r.problem_id &&
+              p.topic_id === practiceTopic(route.topicId),
           ))
       )
         throw new ApiError("NOT_FOUND", "기록과 문제가 일치하지 않아요.", 404);
@@ -693,6 +705,14 @@ function App() {
           >
             문의하기
           </button>
+          <button
+            className={
+              page === "plans" || page === "checkout" ? "nav active" : "nav"
+            }
+            onClick={() => transition("/plans")}
+          >
+            구독 안내
+          </button>
           {user.isAdmin && !nativeAndroid && (
             <button
               className={page === "admin" ? "nav active" : "nav"}
@@ -932,7 +952,9 @@ function App() {
   const groups = groupLearningTopics(topics, filter);
   const relatedProblems = topic
     ? problems.filter(
-        (p) => p.topic_id === topic.id && (!practiceId || p.id === practiceId),
+        (p) =>
+          p.topic_id === practiceTopic(topic.id) &&
+          (!practiceId || p.id === practiceId),
       )
     : [];
   const openLesson = (
@@ -1008,6 +1030,9 @@ function App() {
             </button>
           </div>
         )}
+        {["plans", "checkout"].includes(actualPage) && (
+          <BillingScreens checkout={actualPage === "checkout"} usage={usage} />
+        )}
         {actualPage === "home" && (
           <>
             {mobile ? (
@@ -1064,6 +1089,7 @@ function App() {
                         key={v}
                       >
                         <strong>{v}</strong>
+                        <small>[{i}]</small>
                       </div>
                     ))}
                   </div>
@@ -1074,7 +1100,9 @@ function App() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow">LEARNING PATH</span>
-                <h2>개념별 학습</h2>
+                <h2>
+                  개념별 학습 <small>{topics.length}개</small>
+                </h2>
               </div>
               <label className="search">
                 <Search size={18} />
@@ -1124,7 +1152,7 @@ function App() {
                     >
                       <span className="card-category">{group.name}</span>
                       <h4>{t.title}</h4>
-                      <p>{t.body.split(". ")[0]}.</p>
+                      <p>{t.body.split(". ")[0].replace(/\.$/, "")}.</p>
                       <span className="card-link">
                         개념과 예제 살펴보기 <ArrowRight size={16} />
                       </span>
@@ -1171,8 +1199,63 @@ function App() {
                     <h3>언제 사용하나요?</h3>
                     <p>{conceptUses[topic.id][0]}</p>
                     <h3>대표 활용 사례</h3>
-                    <p>{conceptUses[topic.id][1]}</p>
+                    <p>
+                      {focusedById[topic.id]?.example ??
+                        focusedConcepts.find((c) => c.parent === topic.id)
+                          ?.example ??
+                        conceptUses[topic.id][1]}
+                    </p>
                   </section>
+                )}
+                <hr />
+                <table className="complexity-table">
+                  <caption>시간·공간 복잡도</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">분석 대상</th>
+                      <th scope="col">시간</th>
+                      <th scope="col">공간</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">핵심 연산</th>
+                      <td>{conceptCost(topic.id)[0]}</td>
+                      <td>{conceptCost(topic.id)[1]}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">연결 실습 전체</th>
+                      <td>{topic.complexity.split("|")[0]}</td>
+                      <td>
+                        {topic.complexity.split("|")[1] ?? "문제 조건 참고"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="caption">
+                  {conceptCost(topic.id)[2]}. 핵심 연산의 공간은 추가 공간이며,
+                  자료구조 저장을 포함한 경우 별도로 표시했어요. n은 원소 수,
+                  V·E는 정점·간선 수예요. 연결 실습 전체는 입력 저장과 출력까지
+                  포함해요.
+                </p>
+                {focusedById[topic.id] && (
+                  <p className="caption">
+                    이 세부 개념은{" "}
+                    <a
+                      href={`/learn/${practiceTopic(topic.id)}/concept`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        go(e.currentTarget.getAttribute("href")!);
+                      }}
+                    >
+                      {
+                        topics.find((t) => t.id === practiceTopic(topic.id))
+                          ?.title
+                      }
+                    </a>
+                    의 기본 동작 예제와 코딩 문제를 함께 사용해요. 위의 활용
+                    사례는 이 개념에 대한 별도 예시예요.
+                  </p>
                 )}
               </article>
               <div className="lesson-example-column">
@@ -1182,10 +1265,6 @@ function App() {
                   title={topic.title}
                   theme={theme}
                 />
-                <details className="manual-example" open>
-                  <summary>단계별 예제 직접 살펴보기</summary>
-                  <LessonDiagram topic={topic.id} />
-                </details>
               </div>
             </div>
             <div className="lesson-next-screen">

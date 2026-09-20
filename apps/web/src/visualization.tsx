@@ -1,3 +1,4 @@
+import { practiceTopic } from "../../server/src/focused-concepts.js";
 import { track } from "./analytics.js";
 import { DiagramCanvas, graphPositions } from "./DiagramCanvas.js";
 import { lessonExamples } from "./lesson-examples.js";
@@ -249,7 +250,7 @@ export function Structure({ vars, topic }: { vars: any; topic: string }) {
         x: (width * (i - first + 0.5)) / 2 ** level,
         y: 65 + level * 110,
         label: String(v),
-        detail: `인덱스 ${i}`,
+        detail: `[${i}]`,
         state: vars.index === i || vars.mid === i ? "active" : "",
       };
     });
@@ -266,7 +267,9 @@ export function Structure({ vars, topic }: { vars: any; topic: string }) {
         />
         <p>
           {topic === "tree" ? "중위 순회" : "힙 배열"}{" "}
-          <code>{JSON.stringify(vars.order ?? (topic === "tree" ? [] : values))}</code>
+          <code>
+            {JSON.stringify(vars.order ?? (topic === "tree" ? [] : values))}
+          </code>
         </p>
         {vars.values.length > 31 && (
           <p>처음 31개 노드를 표시해요. 전체 값은 변수 보기에서 확인하세요.</p>
@@ -316,6 +319,7 @@ export function Structure({ vars, topic }: { vars: any; topic: string }) {
   );
 }
 export function LessonDiagram({ topic }: { topic: string }) {
+  topic = practiceTopic(topic);
   return (advancedTopics as readonly string[]).includes(topic) ? (
     <AdvancedLesson key={topic} topic={topic} />
   ) : (
@@ -384,80 +388,83 @@ function CoreLessonDiagram({ topic }: { topic: string }) {
         </label>
         <p>{examples[exampleIndex]?.description}</p>
       </div>
-      <form
-        className="lesson-controls"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const nums = text
-            .split(/[,\s]+/)
-            .filter(Boolean)
-            .map(Number);
-          if (
-            !nums.length ||
-            nums.length > 8 ||
-            nums.some((n) => !Number.isInteger(n) || Math.abs(n) > 1000)
-          ) {
+      <details className="example-settings">
+        <summary>입력값 직접 바꾸기</summary>
+        <form
+          className="lesson-controls"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const nums = text
+              .split(/[,\s]+/)
+              .filter(Boolean)
+              .map(Number);
+            if (
+              !nums.length ||
+              nums.length > 8 ||
+              nums.some((n) => !Number.isInteger(n) || Math.abs(n) > 1000)
+            ) {
+              track("EXAMPLE_APPLIED", {
+                topic,
+                count: Math.min(nums.length, 1000000),
+                success: false,
+              });
+              setInvalid("정수 1~8개를 입력하세요. 각 값은 -1000~1000이에요.");
+              return;
+            }
             track("EXAMPLE_APPLIED", {
               topic,
-              count: Math.min(nums.length, 1000000),
-              success: false,
+              count: nums.length,
+              success: true,
             });
-            setInvalid("정수 1~8개를 입력하세요. 각 값은 -1000~1000이에요.");
-            return;
-          }
-          track("EXAMPLE_APPLIED", {
-            topic,
-            count: nums.length,
-            success: true,
-          });
-          setValues(nums);
-          setCustom(true);
-          setStep(0);
-          setInvalid("");
-        }}
-      >
-        <label>
-          예제 값{" "}
-          <input
-            aria-label="예제 값"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-        </label>
-        {[
-          "binary-search",
-          "linear-search",
-          "two-pointer",
-          "greedy",
-          "recursion",
-          "dp",
-          "memoization",
-          "tabulation",
-        ].includes(topic) && (
+            setValues(nums);
+            setCustom(true);
+            setStep(0);
+            setInvalid("");
+          }}
+        >
           <label>
-            {["recursion", "dp", "memoization", "tabulation"].includes(topic)
-              ? "계산할 크기"
-              : "목표 값"}{" "}
+            예제 값{" "}
             <input
-              aria-label="예제 목표"
-              type="number"
-              min="0"
-              max="1000"
-              value={target}
-              onChange={(e) => {
-                setTarget(
-                  Math.min(1000, Math.max(0, Number(e.target.value) || 0)),
-                );
-                setStep(0);
-              }}
+              aria-label="예제 값"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
             />
           </label>
-        )}
-        <button className="secondary" type="submit">
-          예제 적용 · 처음부터
-        </button>
-        {invalid && <p role="alert">{invalid}</p>}
-      </form>
+          {[
+            "binary-search",
+            "linear-search",
+            "two-pointer",
+            "greedy",
+            "recursion",
+            "dp",
+            "memoization",
+            "tabulation",
+          ].includes(topic) && (
+            <label>
+              {["recursion", "dp", "memoization", "tabulation"].includes(topic)
+                ? "계산할 크기"
+                : "목표 값"}{" "}
+              <input
+                aria-label="예제 목표"
+                type="number"
+                min="0"
+                max="1000"
+                value={target}
+                onChange={(e) => {
+                  setTarget(
+                    Math.min(1000, Math.max(0, Number(e.target.value) || 0)),
+                  );
+                  setStep(0);
+                }}
+              />
+            </label>
+          )}
+          <button className="secondary" type="submit">
+            예제 적용 · 처음부터
+          </button>
+          {invalid && <p role="alert">{invalid}</p>}
+        </form>
+      </details>
       <p>{current.note}</p>
       <Structure
         key={"structure-" + topic + exampleIndex}

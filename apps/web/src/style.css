@@ -546,13 +546,13 @@ nav .nav {
   white-space: nowrap;
 }
 main {
-  max-width: 1440px;
+  max-width: 1800px;
   padding: 48px 48px 64px;
   margin: auto;
   min-height: calc(100vh - 170px);
 }
 footer {
-  max-width: 1440px;
+  max-width: 1800px;
   padding: 22px 48px;
   margin: auto;
   border-top: 1px solid var(--border);
@@ -1792,4 +1792,224 @@ body:has(.mobile-navigation) footer {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+/* Focused learning: one explanation, one example panel, one primary next action. */
+.lesson-layout {
+  grid-template-columns: minmax(330px, 0.85fr) minmax(0, 1.65fr);
+  gap: 32px;
+}
+.lesson-layout > .prose {
+  position: static;
+  max-height: none;
+  overflow: visible;
+}
+.lesson-layout .prose p {
+  line-height: 1.85;
+}
+.example-tab-layout {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.example-side-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-right: 1px solid var(--border);
+  padding-right: 14px;
+}
+.example-side-tabs button {
+  white-space: normal;
+  width: 100%;
+  padding: 14px 8px;
+  min-height: 52px;
+}
+#example-content {
+  min-width: 0;
+}
+#example-content > .panel {
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+.example-animation img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.animation-legend {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  margin: 8px 0;
+  color: var(--muted);
+}
+.animation-legend span:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+.complexity-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+.complexity-table caption {
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.complexity-table th,
+.complexity-table td {
+  border: 1px solid var(--border);
+  padding: 12px;
+  text-align: left;
+}
+.prose hr,
+.billing-page hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 28px 0;
+}
+.hero .cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.hero .cell small {
+  font-size: 12px;
+}
+.section-heading h2 small {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 400;
+}
+.billing-page {
+  max-width: 1240px;
+  margin: auto;
+}
+.plans-grid,
+.checkout-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  padding: 32px;
+}
+.plan-card ul {
+  padding-left: 22px;
+  line-height: 2.4;
+  margin-bottom: 28px;
+}
+.plan-card > button {
+  margin-top: auto;
+  width: 100%;
+}
+.plan-price {
+  font-size: 28px;
+  font-weight: 700;
+}
+.plan-price small {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.featured-plan {
+  border: 2px solid var(--accent);
+}
+.billing-policy {
+  margin-top: 28px;
+}
+.billing-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 24px 0;
+}
+.billing-facts dd {
+  margin: 0;
+  text-align: right;
+}
+.billing-facts dt {
+  color: var(--muted);
+}
+.order-summary {
+  align-self: start;
+}
+.order-summary button {
+  width: 100%;
+  margin-top: 14px;
+}
+.payment-placeholder {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  color: var(--muted);
+}
+@media (min-width: 1600px) {
+  main {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+  .topic-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1100px) {
+  .lesson-layout {
+    grid-template-columns: minmax(300px, 1fr) minmax(0, 1.4fr);
+    gap: 20px;
+  }
+  .example-tab-layout {
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .example-side-tabs {
+    padding-right: 8px;
+  }
+}
+@media (max-width: 849px) {
+  .lesson-layout,
+  .plans-grid,
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+  .example-tab-layout {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+  .example-animation {
+    padding: 16px;
+  }
+  .animation-legend {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .plan-card {
+    padding: 24px;
+  }
+}
+
+.example-settings {
+  margin: 12px 0 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+}
+.example-settings summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.complexity-table {
+  font-size: 13px;
+}
+.complexity-table td,
+.complexity-table th {
+  overflow-wrap: anywhere;
+  padding: 10px;
 }
