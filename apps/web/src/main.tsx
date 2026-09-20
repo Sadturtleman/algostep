@@ -17,7 +17,6 @@ import { createRoot } from "react-dom/client";
 import {
   BookOpen,
   Code2,
-  History,
   ArrowRight,
   Sun,
   Moon,
@@ -25,7 +24,6 @@ import {
   AlertCircle,
   Play,
   FileDown,
-  GitBranch,
   Search,
   Check,
   ArrowLeft,
@@ -514,7 +512,12 @@ function App() {
   const header = (
     <header>
       <button className="brand" onClick={() => void navigate("home")}>
-        <img src="/logo.svg" alt="" width="38" height="38" />
+        <img
+          src={theme === "dark" ? "/logo-dark.svg" : "/logo.svg"}
+          alt=""
+          width="56"
+          height="56"
+        />
         <b>알고리즘</b>
       </button>
       {user && (
@@ -527,7 +530,6 @@ function App() {
             }
             onClick={() => void navigate("home")}
           >
-            <BookOpen size={18} />
             학습 홈
           </button>
           {!mobile && (
@@ -540,14 +542,13 @@ function App() {
                 }
                 onClick={() => void navigate("problems")}
               >
-                <Code2 size={18} />
                 문제 풀기
               </button>
               <button
                 className={page === "history" ? "nav active" : "nav"}
                 onClick={() => void navigate("history")}
               >
-                <History size={18} />내 기록
+                내 기록
               </button>
             </>
           )}
@@ -578,6 +579,9 @@ function App() {
           }}
         >
           {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          <span className="theme-label">
+            테마 · {theme === "dark" ? "다크" : "라이트"}
+          </span>
         </button>
         {user && (
           <button
@@ -834,41 +838,67 @@ function App() {
         )}
         {actualPage === "home" && (
           <>
-            <section className="hero">
-              <div>
-                <span className="eyebrow">LEARN BY UNDERSTANDING</span>
+            {mobile ? (
+              <section className="mobile-intro">
                 <h1>
-                  오늘은 어떤 흐름을
+                  짧은 틈에도,
                   <br />
-                  이해해 볼까요?
+                  이해는 한 걸음 더.
                 </h1>
-                <p>
-                  자료구조를 살펴보고, 알고리즘의 다음 단계를 직접 따라가세요.
-                </p>
-                <button
-                  onClick={() => {
-                    const t = topics.find((t) => t.id === "binary-search");
-                    openLesson(t);
-                  }}
-                >
-                  이진 탐색부터 시작하기 <ArrowRight size={18} />
-                </button>
-              </div>
-              <div className="hero-diagram">
-                <span className="badge">작은 단계가 만드는 이해</span>
-                <div className="array">
-                  {[2, 5, 8, 13, 21].map((v, i) => (
-                    <div className={`cell ${i === 2 ? "active" : ""}`} key={v}>
-                      <small>{i}</small>
-                      <strong>{v}</strong>
-                    </div>
-                  ))}
+                <p>오늘은 어떤 원리를 알아볼까요?</p>
+                <div className="continue-lesson">
+                  <small>추천 학습</small>
+                  <h3>이진 탐색</h3>
+                  <p>범위를 절반씩 줄이는 이유</p>
+                  <button
+                    onClick={() =>
+                      openLesson(topics.find((t) => t.id === "binary-search"))
+                    }
+                  >
+                    개념 살펴보기
+                  </button>
                 </div>
-                <p>
-                  관찰하고 <span>→</span> 예측하고 <span>→</span> 확인하세요
-                </p>
-              </div>
-            </section>
+              </section>
+            ) : (
+              <section className="hero">
+                <div>
+                  <span className="eyebrow">LEARN BY SEEING</span>
+                  <h1>
+                    코드를 따라가면,
+                    <br />
+                    원리가 보입니다.
+                  </h1>
+                  <p>
+                    한 줄의 실행이 어떻게 답을 만드는지 살펴보세요.
+                    <br />
+                    직접 작성하고, 움직임을 확인하고, 이해를 쌓아가세요.
+                  </p>
+                  <button
+                    onClick={() => {
+                      const t = topics.find((t) => t.id === "binary-search");
+                      openLesson(t);
+                    }}
+                  >
+                    이진 탐색부터 시작하기 <ArrowRight size={18} />
+                  </button>
+                </div>
+                <div className="hero-diagram">
+                  <span className="eyebrow">BINARY SEARCH</span>
+                  <h3>절반을 지울 때마다, 더 가까이</h3>
+                  <div className="array">
+                    {[2, 5, 8, 13, 21].map((v, i) => (
+                      <div
+                        className={`cell ${i === 2 ? "active" : ""}`}
+                        key={v}
+                      >
+                        <strong>{v}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <code>mid = 2　 ·　 target = 13</code>
+                </div>
+              </section>
+            )}
             <div className="section-heading">
               <div>
                 <span className="eyebrow">LEARNING PATH</span>
@@ -920,16 +950,7 @@ function App() {
                         openLesson(t);
                       }}
                     >
-                      <div className="section-heading">
-                        <span className="topic-symbol">
-                          {t.category === "그래프" ? (
-                            <GitBranch />
-                          ) : (
-                            <BookOpen />
-                          )}
-                        </span>
-                        <span className="badge">{group.name}</span>
-                      </div>
+                      <span className="card-category">{group.name}</span>
                       <h4>{t.title}</h4>
                       <p>{t.body.split(". ")[0]}.</p>
                       <span className="card-link">
@@ -1174,6 +1195,23 @@ function App() {
                 </button>
               </div>
             </div>
+            <div className="problem-description workspace-description">
+              <h3>문제</h3>
+              <p>{problem.statement}</p>
+              <details>
+                <summary>입출력 조건과 공개 테스트</summary>
+                <p>{problem.input_spec}</p>
+                <p>{problem.output_spec}</p>
+                <small>{problem.constraints_text}</small>
+                {problem.tests.map((t: any, i: number) => (
+                  <div className="public-test" key={i}>
+                    <strong>테스트 {i + 1}</strong>
+                    <pre>{t.input}</pre>
+                    <code>예상 출력: {JSON.stringify(t.expected)}</code>
+                  </div>
+                ))}
+              </details>
+            </div>
             <div className="workspace">
               <section className="panel editor-panel">
                 <div className="language-tabs">
@@ -1200,15 +1238,25 @@ function App() {
                   </code>
                   <span role="status">{saveStatus}</span>
                 </div>
-                <Suspense fallback={<p>코드 편집기를 준비하고 있어요.</p>}>
+                <Suspense
+                  fallback={
+                    <p className="editor-loading">
+                      코드 편집기를 준비하고 있어요.
+                    </p>
+                  }
+                >
                   <Editor
-                    height="410px"
+                    height="392px"
                     language={language === "cpp" ? "cpp" : language}
                     value={source}
                     onChange={(s) => editCode(s ?? "")}
-                    theme={theme === "dark" ? "vs-dark" : "light"}
+                    theme={
+                      theme === "dark" ? "algostep-dark" : "algostep-light"
+                    }
                     options={{
                       fontSize: 14,
+                      lineHeight: 24,
+                      fontFamily: "JetBrains Mono, monospace",
                       minimap: { enabled: false },
                       scrollBeyondLastLine: false,
                       automaticLayout: true,
@@ -1261,43 +1309,8 @@ function App() {
                 </button>
               </section>
               <div className="right-column">
-                <div className="panel problem-description">
-                  <h3>문제</h3>
-                  <p>{problem.statement}</p>
-                  <details>
-                    <summary>입출력 조건과 공개 테스트</summary>
-                    <p>{problem.input_spec}</p>
-                    <p>{problem.output_spec}</p>
-                    <small>{problem.constraints_text}</small>
-                    {problem.tests.map((t: any, i: number) => (
-                      <div className="public-test" key={i}>
-                        <strong>테스트 {i + 1}</strong>
-                        <pre>{t.input}</pre>
-                        <code>예상 출력: {JSON.stringify(t.expected)}</code>
-                      </div>
-                    ))}
-                  </details>
-                </div>
                 <section className="panel results">
-                  <div className="language-tabs">
-                    {[
-                      ["visual", "시각화"],
-                      ["tests", "테스트 결과"],
-                      ["review", "코드 리뷰"],
-                    ].map(([k, v]) => (
-                      <button
-                        key={k}
-                        className={`tab ${tab === k ? "active" : ""}`}
-                        onClick={() => {
-                          setTab(k);
-                          track("RESULT_TAB_VIEWED", { tab: k });
-                        }}
-                      >
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                  {tab !== "review" && (
+                  {
                     <>
                       <div className="execution-state">
                         <span className="badge">
@@ -1353,8 +1366,8 @@ function App() {
                         </select>
                       )}
                     </>
-                  )}
-                  {tab === "visual" && (
+                  }
+                  {
                     <>
                       <TraceViewer
                         trace={selectedTest?.trace ?? []}
@@ -1393,125 +1406,140 @@ function App() {
                         </div>
                       )}
                     </>
-                  )}
-                  {tab === "tests" &&
-                    (selectedTest ? (
-                      <>
-                        <div className="metrics">
-                          <div>
-                            <small>실행 시간</small>
-                            <strong>{selectedTest.elapsedMs} ms</strong>
-                          </div>
-                          <div>
-                            <small>최대 메모리</small>
-                            <strong>
-                              {(
-                                selectedTest.peakMemoryBytes /
-                                1024 /
-                                1024
-                              ).toFixed(2)}{" "}
-                              MiB
-                            </strong>
-                          </div>
-                        </div>
-                        <p className="caption">
-                          엄격 비교 · 아래 표기는 공백과 줄바꿈을 포함해요.
-                        </p>
-                        {[
-                          ["입력", selectedTest.input],
-                          [
-                            "예상 출력",
-                            selectedTest.expected === null
-                              ? "사용자 입력 실행 — 채점 없음"
-                              : JSON.stringify(selectedTest.expected),
-                          ],
-                          ["실제 출력", JSON.stringify(selectedTest.actual)],
-                          ["실행 오류", selectedTest.stderr || "없음"],
-                        ].map(([k, v]) => (
-                          <div key={k}>
-                            <h4>{k}</h4>
-                            <pre>{v}</pre>
-                          </div>
-                        ))}
-                      </>
-                    ) : (
-                      <p className="empty">
-                        코드를 실행하면 테스트 결과가 여기에 표시돼요.
-                      </p>
-                    ))}
-                  {tab === "review" && (
-                    <>
-                      <div className="section-heading">
-                        <h3>코드 리뷰</h3>
-                        <span className="badge">
-                          무료{" "}
-                          {Math.max(
-                            0,
-                            3 - (usage?.consumed ?? 0) - (usage?.reserved ?? 0),
-                          )}{" "}
-                          / 3건 남음
-                        </span>
-                      </div>
-                      <p className="muted">
-                        논리 오류 · 효율 개선 · 대안 코드를 확인해요.
-                        <br />
-                        작성 코드, 권장 코드, 문제를 LLM에 전달합니다.
-                      </p>
-                      <button
-                        disabled={busy || !config?.reviewEnabled}
-                        onClick={() => void review()}
-                      >
-                        현재 코드 리뷰 요청
-                      </button>
-                      {!config?.reviewEnabled && (
-                        <p className="caption">
-                          리뷰 서비스 연결이 준비 중이에요. 이용량은 차감되지
-                          않아요.
-                        </p>
-                      )}
-                      <p className="caption">
-                        KST 매월 1일 초기화 · 이월 없음 · 추가 구매는 가격 확정
-                        후 제공
-                      </p>
-                      {record.reviews?.map((r: any) => (
-                        <article className="review" key={r.id}>
-                          <span className="badge">{r.status}</span>
-                          <small>
-                            {new Date(r.created_at).toLocaleString("ko-KR")}
-                          </small>
-                          {r.status === "FAILED" && (
-                            <p>
-                              리뷰를 완료하지 못했어요. 이용량은 차감되지
-                              않았어요.
-                            </p>
-                          )}
-                          {r.result && (
-                            <>
-                              <h4>논리 오류</h4>
-                              <p className="pre-wrap">
-                                {r.result.logicalErrors}
-                              </p>
-                              <h4>효율 개선</h4>
-                              <p className="pre-wrap">
-                                {r.result.efficiencyImprovements}
-                              </p>
-                              <h4>대안 코드</h4>
-                              <pre>{r.result.alternativeCode}</pre>
-                            </>
-                          )}
-                          <details>
-                            <summary>
-                              리뷰 당시 코드 · {labels[r.language]}
-                            </summary>
-                            <pre>{r.source}</pre>
-                          </details>
-                        </article>
-                      ))}
-                    </>
-                  )}
+                  }
                 </section>
               </div>
             </div>
+            <section
+              className="panel workspace-outcomes"
+              aria-label="테스트 결과와 코드 리뷰"
+            >
+              <div className="language-tabs">
+                {[
+                  ["tests", "테스트 결과"],
+                  ["review", "코드 리뷰"],
+                ].map(([k, v]) => (
+                  <button
+                    key={k}
+                    className={`tab ${(tab === "visual" ? "tests" : tab) === k ? "active" : ""}`}
+                    onClick={() => {
+                      setTab(k);
+                      track("RESULT_TAB_VIEWED", { tab: k });
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              {tab !== "review" &&
+                (selectedTest ? (
+                  <>
+                    <div className="metrics">
+                      <div>
+                        <small>실행 시간</small>
+                        <strong>{selectedTest.elapsedMs} ms</strong>
+                      </div>
+                      <div>
+                        <small>최대 메모리</small>
+                        <strong>
+                          {(selectedTest.peakMemoryBytes / 1024 / 1024).toFixed(
+                            2,
+                          )}{" "}
+                          MiB
+                        </strong>
+                      </div>
+                    </div>
+                    <p className="caption">
+                      엄격 비교 · 아래 표기는 공백과 줄바꿈을 포함해요.
+                    </p>
+                    {[
+                      ["입력", selectedTest.input],
+                      [
+                        "예상 출력",
+                        selectedTest.expected === null
+                          ? "사용자 입력 실행 — 채점 없음"
+                          : JSON.stringify(selectedTest.expected),
+                      ],
+                      ["실제 출력", JSON.stringify(selectedTest.actual)],
+                      ["실행 오류", selectedTest.stderr || "없음"],
+                    ].map(([k, v]) => (
+                      <div key={k}>
+                        <h4>{k}</h4>
+                        <pre>{v}</pre>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <p className="empty">
+                    코드를 실행하면 테스트 결과가 여기에 표시돼요.
+                  </p>
+                ))}
+              {tab === "review" && (
+                <>
+                  <div className="section-heading">
+                    <h3>코드 리뷰</h3>
+                    <span className="badge">
+                      무료{" "}
+                      {Math.max(
+                        0,
+                        3 - (usage?.consumed ?? 0) - (usage?.reserved ?? 0),
+                      )}{" "}
+                      / 3건 남음
+                    </span>
+                  </div>
+                  <p className="muted">
+                    논리 오류 · 효율 개선 · 대안 코드를 확인해요.
+                    <br />
+                    작성 코드, 권장 코드, 문제를 LLM에 전달합니다.
+                  </p>
+                  <button
+                    disabled={busy || !config?.reviewEnabled}
+                    onClick={() => void review()}
+                  >
+                    현재 코드 리뷰 요청
+                  </button>
+                  {!config?.reviewEnabled && (
+                    <p className="caption">
+                      리뷰 서비스 연결이 준비 중이에요. 이용량은 차감되지
+                      않아요.
+                    </p>
+                  )}
+                  <p className="caption">
+                    KST 매월 1일 초기화 · 이월 없음 · 추가 구매는 가격 확정 후
+                    제공
+                  </p>
+                  {record.reviews?.map((r: any) => (
+                    <article className="review" key={r.id}>
+                      <span className="badge">{r.status}</span>
+                      <small>
+                        {new Date(r.created_at).toLocaleString("ko-KR")}
+                      </small>
+                      {r.status === "FAILED" && (
+                        <p>
+                          리뷰를 완료하지 못했어요. 이용량은 차감되지 않았어요.
+                        </p>
+                      )}
+                      {r.result && (
+                        <>
+                          <h4>논리 오류</h4>
+                          <p className="pre-wrap">{r.result.logicalErrors}</p>
+                          <h4>효율 개선</h4>
+                          <p className="pre-wrap">
+                            {r.result.efficiencyImprovements}
+                          </p>
+                          <h4>대안 코드</h4>
+                          <pre>{r.result.alternativeCode}</pre>
+                        </>
+                      )}
+                      <details>
+                        <summary>리뷰 당시 코드 · {labels[r.language]}</summary>
+                        <pre>{r.source}</pre>
+                      </details>
+                    </article>
+                  ))}
+                </>
+              )}
+            </section>
           </>
         )}
         {actualPage === "history" && (
@@ -1580,6 +1608,34 @@ function App() {
           </>
         )}
       </main>
+      {mobile && (
+        <nav className="mobile-navigation" aria-label="모바일 학습 메뉴">
+          <button
+            className={actualPage === "home" ? "nav active" : "nav"}
+            onClick={() => void navigate("home")}
+          >
+            홈
+          </button>
+          <button
+            className={actualPage === "lesson" ? "nav active" : "nav"}
+            onClick={() =>
+              openLesson(topic ?? topics.find((t) => t.id === "binary-search"))
+            }
+          >
+            학습
+          </button>
+          <button
+            className={actualPage === "practice" ? "nav active" : "nav"}
+            onClick={() => {
+              setTopic(topic ?? topics.find((t) => t.id === "binary-search"));
+              setPage("practice");
+              window.scrollTo(0, 0);
+            }}
+          >
+            퀴즈
+          </button>
+        </nav>
+      )}
       <footer>
         알고리즘 <span>이해가 쌓이는 학습 공간</span>
         <small>Python 3.10 · C++20 · Java 21</small>
