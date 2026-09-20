@@ -2,10 +2,13 @@ import type { DB } from "./db.js";
 import { focusedConcepts } from "./focused-concepts.js";
 
 export async function seedFocusedConcepts(db: DB) {
-  for (const c of focusedConcepts) {
-    const parent = (
-      await db.query("SELECT * FROM topics WHERE id=$1", [c.parent])
-    ).rows[0];
+  const parents = new Map(
+    (
+      await db.query("SELECT id,category,priority,complexity FROM topics")
+    ).rows.map((t) => [t.id, t]),
+  );
+  const rows = focusedConcepts.map((c) => {
+    const parent = parents.get(c.parent);
     if (!parent) throw new Error(`Missing curriculum parent: ${c.parent}`);
     const options = [
       c.principle,
@@ -14,22 +17,30 @@ export async function seedFocusedConcepts(db: DB) {
     ];
     const shift = c.id.length % 3;
     const choices = [...options.slice(shift), ...options.slice(0, shift)];
-    await db.query(
-      "INSERT INTO topics(id,title,category,priority,body,complexity,quiz) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
-      [
-        c.id,
-        c.title,
-        parent.category,
-        parent.priority,
-        c.principle,
-        parent.complexity,
-        JSON.stringify({
-          question: `${c.title}에 대한 설명으로 옳은 것은?`,
-          options: choices,
-          answer: choices.indexOf(c.principle),
-          explanation: c.example,
-        }),
-      ],
-    );
-  }
+    return [
+      c.id,
+      c.title,
+      parent.category,
+      parent.priority,
+      c.principle,
+      parent.complexity,
+      JSON.stringify({
+        question: `${c.title}에 대한 설명으로 옳은 것은?`,
+        options: choices,
+        answer: choices.indexOf(c.principle),
+        explanation: c.example,
+      }),
+    ];
+  });
+  // Two round trips regardless of lesson count; important for remote DB cold starts.
+  const placeholders = rows
+    .map(
+      (_, i) =>
+        `(${Array.from({ length: 7 }, (_, j) => `$${i * 7 + j + 1}`).join(",")})`,
+    )
+    .join(",");
+  await db.query(
+    `INSERT INTO topics(id,title,category,priority,body,complexity,quiz) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+    rows.flat(),
+  );
 }
