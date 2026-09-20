@@ -1,4 +1,113 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+.learning-steps {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 28px;
+  flex-wrap: wrap;
+}
+.learning-steps a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+.learning-steps a[aria-current] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.prediction-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 24px;
+  align-items: start;
+}
+.prediction-layout > .panel {
+  min-width: 0;
+}
+.prediction-layout h2 {
+  font-size: 20px;
+}
+.answer-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+.answer-targets button {
+  min-height: 56px;
+  min-width: 64px;
+}
+.prediction-feedback {
+  padding: 24px;
+  margin: 24px 0;
+  border-radius: 12px;
+  background: var(--subtle);
+}
+.prediction-feedback.correct {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.prediction-feedback.wrong {
+  border: 1px solid var(--danger);
+}
+.prediction-input {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.prediction-input input {
+  width: 100%;
+  min-width: 0;
+}
+.state-table {
+  overflow: auto;
+}
+.state-values {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+}
+.state-values dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.example-animation img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+.manual-example {
+  margin-top: 24px;
+}
+.manual-example summary {
+  padding: 16px 0;
+  cursor: pointer;
+}
+@media (max-width: 849px) {
+  .prediction-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .learning-steps {
+    flex-wrap: nowrap;
+  }
+  .learning-steps a {
+    flex: 1;
+    padding: 12px 6px;
+    font-size: 12px;
+  }
+  .prediction-layout .panel {
+    padding: 20px;
+  }
+}
 .dashboard {
   width: 100%;
   min-width: 0;
@@ -1130,7 +1239,7 @@ summary {
   stroke-width: 2;
 }
 .node.active {
-  fill: var(--accent-soft);
+  fill: var(--accent);
   stroke: var(--accent);
 }
 .node.visited {

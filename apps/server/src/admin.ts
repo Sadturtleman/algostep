@@ -188,6 +188,16 @@ export async function registerAdmin(app: FastifyInstance, db: DB) {
     return { rows: rows.slice(0, 25), hasMore: rows.length > 25 };
   };
   app.get("/api/support", (req) => listTickets(req, false));
+  app.get("/api/support/:id", async (req: any) => {
+    const ticketId = z.string().uuid().parse(req.params.id);
+    const result = await db.query(
+      "SELECT * FROM support_tickets WHERE id=$1 AND user_id=$2",
+      [ticketId, req.user.id],
+    );
+    if (!result.rows[0])
+      throw new DomainError(404, "NOT_FOUND", "문의를 찾을 수 없어요.");
+    return result.rows[0];
+  });
   app.get("/api/admin/inquiries", (req) => listTickets(req, true));
   app.post("/api/support", async (req: any) => {
     const v = z

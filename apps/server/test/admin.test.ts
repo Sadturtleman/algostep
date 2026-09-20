@@ -191,6 +191,14 @@ test("inquiry ownership, idempotency, reply visibility and conflicting updates",
   assert.equal(created.statusCode, 200, created.body);
   const ticket = created.json();
   assert.equal(
+    (await request(student, "GET", `/api/support/${ticket.id}`)).json().body,
+    "PRIVATE_INQUIRY_CONTENT",
+  );
+  assert.equal(
+    (await request(other, "GET", `/api/support/${ticket.id}`)).statusCode,
+    404,
+  );
+  assert.equal(
     (await request(student, "POST", "/api/support", input)).json().id,
     ticket.id,
   );
