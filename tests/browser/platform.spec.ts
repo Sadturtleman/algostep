@@ -8,14 +8,12 @@ test("problem navigation opens the selected coding workspace directly", async ({
   const before = (await (await page.request.get("/api/records")).json()).records
     .length;
   await page.getByRole("button", { name: "문제 풀기", exact: true }).click();
-  const row = page
-    .getByRole("article")
-    .filter({
-      has: page.getByRole("heading", {
-        name: "FFT로 다항식 곱하기",
-        exact: true,
-      }),
-    });
+  const row = page.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "FFT로 다항식 곱하기",
+      exact: true,
+    }),
+  });
   await expect(
     row.getByRole("button", { name: "개념과 예제 보기", exact: true }),
   ).toBeVisible();
@@ -117,6 +115,39 @@ async function authenticate(page: any) {
     data: { credential: "integration-test-token" },
   });
 }
+
+test("home remains usable across desktop and mobile widths and both themes", async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "개념별 학습" }),
+  ).toBeVisible();
+  for (const width of [1440, 1024, 850, 768, 412, 360]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const theme of ["light", "dark"]) {
+      if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+        await page.getByRole("button", { name: "테마 변경" }).click();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      if (width < 850) {
+        const nav = page.getByRole("navigation", { name: "모바일 학습 메뉴" });
+        await expect(nav).toBeInViewport();
+        await page.locator("footer").scrollIntoViewIfNeeded();
+        await expect(nav).toBeInViewport();
+        await page.evaluate(() => window.scrollTo(0, 0));
+      }
+      if (width === 1440 || width === 412)
+        await page.screenshot({
+          path: `test-results/figma-home-${width}-${theme}.png`,
+        });
+    }
+  }
+});
 
 test("expanded quizzes and movable diagrams retain positions across steps", async ({
   page,
@@ -485,6 +516,19 @@ test("mobile offers lessons and quizzes, not coding navigation", async ({
     ),
   ).toBe(true);
   await page.screenshot({ path: "test-results/mobile.png", fullPage: true });
+  const mobileNav = page.getByRole("navigation", { name: "모바일 학습 메뉴" });
+  await mobileNav.getByRole("button", { name: "학습", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "기본 개념", exact: true }),
+  ).toBeVisible();
+  await mobileNav.getByRole("button", { name: "퀴즈", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "잠깐, 이해했나요?", exact: true }),
+  ).toBeVisible();
+  await mobileNav.getByRole("button", { name: "홈", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "개념별 학습" }),
+  ).toBeVisible();
 });
 test("network outage uses full-screen recovery CTA", async ({ page }) => {
   await authenticate(page);
@@ -631,6 +675,13 @@ test("worker result contract renders actual supplied trace and strict outputs", 
   await page.getByRole("button", { name: "테스트 결과", exact: true }).click();
   await expect(page.getByText("13 ms", { exact: true })).toBeVisible();
   await expect(page.getByText('"0 1\\n"', { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "코드 리뷰", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "현재 코드 리뷰 요청", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "객체 필드와 참조 관계" }),
+  ).toBeVisible();
 });
 test("Android tablet remains learning-only at desktop width", async ({
   page,
