@@ -12,6 +12,7 @@ const app = await createApp({
   sessionSecret: "e2e-only",
   runnerToken: "e2e-runner-secret",
   llmEnabled: false,
+  testRateLimit: 10000,
   adminEmails: ["admin@example.test"],
   verifyGoogle: async (token) => {
     if (token === "integration-admin-token")

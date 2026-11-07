@@ -7,7 +7,7 @@ import { cleanExpired } from "./domain.js";
 import { processReview, recoverReviews } from "./review-worker.js";
 import { GcsStorage } from "./object-storage.js";
 import { maintenance } from "./maintenance.js";
-import staticFiles from "@fastify/static";
+import { registerWeb } from "./web-static.js";
 const production = process.env.NODE_ENV === "production";
 if (
   production &&
@@ -53,11 +53,7 @@ const app = await createApp({
   schedulerEmail: process.env.SCHEDULER_EMAIL,
   adminEmails: (process.env.ADMIN_EMAILS ?? "").split(","),
 });
-if (process.env.WEB_DIST)
-  await app.register(staticFiles, {
-    root: resolve(process.env.WEB_DIST),
-    prefix: "/",
-  });
+if (process.env.WEB_DIST) await registerWeb(app, resolve(process.env.WEB_DIST));
 let busy = false;
 const timer = setInterval(async () => {
   if (busy) return;

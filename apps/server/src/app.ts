@@ -42,6 +42,8 @@ type Config = {
   schedulerAudience?: string;
   schedulerEmail?: string;
   adminEmails?: string[];
+  /** Isolated browser fixture only; ignored for production and real OAuth. */
+  testRateLimit?: number;
   verifyGoogle?: (
     token: string,
   ) => Promise<{ sub: string; email: string; name: string; nonce?: string }>;
@@ -87,6 +89,10 @@ const resultInput = z.object({
   runnerImage: z.string().max(256),
 });
 export async function createApp(c: Config) {
+  const testRateLimit =
+    process.env.NODE_ENV === "test" && !c.production && c.verifyGoogle
+      ? c.testRateLimit
+      : undefined;
   const adminEmails = new Set(
     (c.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean),
   );
@@ -103,7 +109,8 @@ export async function createApp(c: Config) {
   await app.register(cors, { origin: c.origin, credentials: true });
   await app.register(rateLimit, {
     max: (req) =>
-      req.routeOptions.url?.startsWith("/api/internal/") ? 1200 : 240,
+      testRateLimit ??
+      (req.routeOptions.url?.startsWith("/api/internal/") ? 1200 : 240),
     timeWindow: "1 minute",
   });
   const google = new OAuth2Client(c.googleClientId);
@@ -292,7 +299,11 @@ export async function createApp(c: Config) {
   });
   app.post(
     "/api/auth/challenge",
-    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    {
+      config: {
+        rateLimit: { max: testRateLimit ?? 20, timeWindow: "1 minute" },
+      },
+    },
     async (_req, reply) => {
       const nonce = randomBytes(32).toString("hex");
       await c.db.query("DELETE FROM auth_challenges WHERE expires_at<=now()");
@@ -320,7 +331,11 @@ export async function createApp(c: Config) {
   }));
   app.post(
     "/api/auth/google",
-    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    {
+      config: {
+        rateLimit: { max: testRateLimit ?? 20, timeWindow: "1 minute" },
+      },
+    },
     async (req, reply) => {
       if (!c.googleClientId && !c.verifyGoogle)
         throw new DomainError(

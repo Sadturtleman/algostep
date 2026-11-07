@@ -25,9 +25,14 @@ const eventLabels: Record<string, string> = {
   COSTS_IMPORTED: "비용 가져오기",
   RECORD_DELETED: "학습 기록 삭제",
 };
-export function AdminDashboard() {
-  const [tab, setTab] = useState("overview"),
-    [from, setFrom] = useState(today().slice(0, 7) + "-01"),
+export function AdminDashboard({
+  section: tab,
+  onNavigate: setTab,
+}: {
+  section: string;
+  onNavigate: (section: string) => void;
+}) {
+  const [from, setFrom] = useState(today().slice(0, 7) + "-01"),
     [to, setTo] = useState(today()),
     [grain, setGrain] = useState("day"),
     [query, setQuery] = useState(`from=${from}&to=${to}&grain=day`),

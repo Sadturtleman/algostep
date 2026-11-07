@@ -135,7 +135,7 @@ export function TraceViewer({
     </div>
   );
 }
-function Structure({ vars, topic }: { vars: any; topic: string }) {
+export function Structure({ vars, topic }: { vars: any; topic: string }) {
   const matrix = topic === "graph-matrix" ? vars.matrix : vars.buckets;
   if (Array.isArray(matrix))
     return (
@@ -266,7 +266,7 @@ function Structure({ vars, topic }: { vars: any; topic: string }) {
         />
         <p>
           {topic === "tree" ? "중위 순회" : "힙 배열"}{" "}
-          <code>{JSON.stringify(vars.order ?? values)}</code>
+          <code>{JSON.stringify(vars.order ?? (topic === "tree" ? [] : values))}</code>
         </p>
         {vars.values.length > 31 && (
           <p>처음 31개 노드를 표시해요. 전체 값은 변수 보기에서 확인하세요.</p>

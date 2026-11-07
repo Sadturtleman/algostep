@@ -26,6 +26,13 @@ test("student inquiry reaches administrator, reply returns to owner, and admin m
   await expect(
     page.getByText("문의가 접수됐어요. 아래 목록에서 답변을 확인해 주세요."),
   ).toBeVisible();
+  await page.getByRole("button", { name: "문의 상세", exact: true }).click();
+  await expect(page).toHaveURL(/\/support\/[a-f0-9-]+$/);
+  await page.reload();
+  await expect(
+    page.getByText("그래프 노드가 겹쳐요. 확인 부탁드려요.", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "문의 목록으로" }).click();
   const context = await browser.newContext({
     baseURL: origin,
     viewport: { width: 1440, height: 1000 },
