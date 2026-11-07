@@ -23,6 +23,8 @@ import { languages } from "./content.js";
 import { renderPdf } from "./pdf.js";
 import { externalize, hydrate, type ObjectStorage } from "./object-storage.js";
 import { maintenance } from "./maintenance.js";
+import { registerAdmin } from "./admin.js";
+import { businessEvent, visit } from "./business.js";
 
 type Config = {
   db: DB;
@@ -36,6 +38,7 @@ type Config = {
   operationsToken?: string;
   schedulerAudience?: string;
   schedulerEmail?: string;
+  adminEmails?: string[];
   verifyGoogle?: (
     token: string,
   ) => Promise<{ sub: string; email: string; name: string; nonce?: string }>;
@@ -81,6 +84,11 @@ const resultInput = z.object({
   runnerImage: z.string().max(256),
 });
 export async function createApp(c: Config) {
+  const adminEmails = new Set(
+    (c.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean),
+  );
+  const isAdmin = (account: any) =>
+    adminEmails.has(account.email.toLowerCase());
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
     bodyLimit: 2 * 1024 * 1024,
@@ -213,9 +221,17 @@ export async function createApp(c: Config) {
     if (!rows[0])
       throw new DomainError(401, "SESSION_EXPIRED", "다시 로그인해 주세요.");
     req.user = rows[0];
+    if (rawPath.startsWith("/api/admin/") && !isAdmin(req.user))
+      throw new DomainError(
+        403,
+        "ADMIN_REQUIRED",
+        "관리자만 이용할 수 있어요.",
+      );
     if (
       rows[0].client === "android" &&
-      !/^\/api\/(me|topics|quiz\/[^/?]+|auth\/logout)(\?|$)/.test(req.url)
+      !/^\/api\/(me|topics|quiz\/[^/?]+|auth\/logout|analytics\/visit|support)(\?|$)/.test(
+        req.url,
+      )
     )
       throw new DomainError(
         403,
@@ -232,6 +248,7 @@ export async function createApp(c: Config) {
         "화면을 다시 열고 시도해 주세요.",
       );
   });
+  await registerAdmin(app, c.db);
   const user = (req: any) => req.user.id as string;
   app.get("/api/operations/metrics", async () => ({
     reviewApiUsage30Days: (
@@ -341,14 +358,28 @@ export async function createApp(c: Config) {
               "로그인 요청이 만료됐어요.",
             );
         }
+        const newAccountId = id();
         const { rows } = await db.query(
           "INSERT INTO users(id,google_subject,email,display_name) VALUES($1,$2,$3,$4) ON CONFLICT(google_subject) DO UPDATE SET email=excluded.email,display_name=excluded.display_name RETURNING *",
-          [id(), p.sub, p.email, p.name],
+          [newAccountId, p.sub, p.email, p.name],
         );
+        if (rows[0].id === newAccountId)
+          await businessEvent(
+            db,
+            "USER_REGISTERED",
+            rows[0].id,
+            rows[0].id,
+            "registration:" + rows[0].id,
+            { client },
+          );
         await db.query(
           "INSERT INTO sessions(id,user_id,csrf,expires_at,client) VALUES($1,$2,$3,now()+interval '7 days',$4)",
           [sessionDigest(token), rows[0].id, csrf, client],
         );
+        await visit(db, rows[0].id);
+        await businessEvent(db, "LOGIN", rows[0].id, null, "login:" + id(), {
+          client,
+        });
         return rows[0];
       });
       reply.setCookie("session", token, {
@@ -358,17 +389,21 @@ export async function createApp(c: Config) {
         path: "/",
         maxAge: 7 * 86400,
       });
-      return { user: account, csrf };
+      return { user: { ...account, isAdmin: isAdmin(account) }, csrf };
     },
   );
-  app.get("/api/me", async (req: any) => ({
-    user: {
-      id: req.user.id,
-      name: req.user.display_name,
-      email: req.user.email,
-    },
-    csrf: req.user.csrf,
-  }));
+  app.get("/api/me", async (req: any) => {
+    await visit(c.db, req.user.id);
+    return {
+      user: {
+        id: req.user.id,
+        name: req.user.display_name,
+        email: req.user.email,
+        isAdmin: isAdmin(req.user),
+      },
+      csrf: req.user.csrf,
+    };
+  });
   app.post("/api/auth/logout", async (req: any, reply) => {
     await c.db.query("DELETE FROM sessions WHERE id=$1", [
       sessionDigest(req.cookies.session),
@@ -388,59 +423,69 @@ export async function createApp(c: Config) {
       return { ...t, quiz: quizzes[0], quizzes };
     }),
   }));
-  app.post("/api/quiz/:topic", async (req: any) => {
-    const v = z
-      .object({
-        answer: z.number().int().min(0).max(10),
-        requestKey: key,
-        questionId: z.string().max(80).default("core"),
-      })
-      .parse(req.body);
-    const { rows } = await c.db.query("SELECT * FROM topics WHERE id=$1", [
-      req.params.topic,
-    ]);
-    if (!rows[0])
-      throw new DomainError(404, "NOT_FOUND", "학습 내용을 찾을 수 없어요.");
-    const q = topicQuizzes(rows[0] as any).find((q) => q.id === v.questionId);
-    if (!q) throw new DomainError(404, "NOT_FOUND", "문항을 찾을 수 없어요.");
-    if (v.answer >= q.options.length)
-      throw new DomainError(400, "INVALID_INPUT", "선택지를 확인해 주세요.");
-    const existing = await c.db.query(
-      "SELECT * FROM quiz_attempts WHERE user_id=$1 AND request_key=$2",
-      [user(req), v.requestKey],
-    );
-    if (existing.rows[0]) {
-      const old = existing.rows[0];
-      return {
-        correct: old.correct,
-        answer: old.question_snapshot.answer,
-        explanation: old.question_snapshot.explanation,
-      };
-    }
-    await c.db.query(
-      "INSERT INTO quiz_attempts(id,user_id,topic_id,answer,correct,request_key,question_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
-      [
-        id(),
-        user(req),
+  app.post("/api/quiz/:topic", async (req: any) =>
+    c.db.tx(async (db) => {
+      const v = z
+        .object({
+          answer: z.number().int().min(0).max(10),
+          requestKey: key,
+          questionId: z.string().max(80).default("core"),
+        })
+        .parse(req.body);
+      const { rows } = await db.query("SELECT * FROM topics WHERE id=$1", [
         req.params.topic,
-        v.answer,
-        v.answer === q.answer,
-        v.requestKey,
-        JSON.stringify(q),
-      ],
-    );
-    const persisted = (
-      await c.db.query(
+      ]);
+      if (!rows[0])
+        throw new DomainError(404, "NOT_FOUND", "학습 내용을 찾을 수 없어요.");
+      const q = topicQuizzes(rows[0] as any).find((q) => q.id === v.questionId);
+      if (!q) throw new DomainError(404, "NOT_FOUND", "문항을 찾을 수 없어요.");
+      if (v.answer >= q.options.length)
+        throw new DomainError(400, "INVALID_INPUT", "선택지를 확인해 주세요.");
+      const existing = await db.query(
         "SELECT * FROM quiz_attempts WHERE user_id=$1 AND request_key=$2",
         [user(req), v.requestKey],
-      )
-    ).rows[0];
-    return {
-      correct: persisted.correct,
-      answer: persisted.question_snapshot.answer,
-      explanation: persisted.question_snapshot.explanation,
-    };
-  });
+      );
+      if (existing.rows[0]) {
+        const old = existing.rows[0];
+        return {
+          correct: old.correct,
+          answer: old.question_snapshot.answer,
+          explanation: old.question_snapshot.explanation,
+        };
+      }
+      await db.query(
+        "INSERT INTO quiz_attempts(id,user_id,topic_id,answer,correct,request_key,question_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
+        [
+          id(),
+          user(req),
+          req.params.topic,
+          v.answer,
+          v.answer === q.answer,
+          v.requestKey,
+          JSON.stringify(q),
+        ],
+      );
+      const persisted = (
+        await db.query(
+          "SELECT * FROM quiz_attempts WHERE user_id=$1 AND request_key=$2",
+          [user(req), v.requestKey],
+        )
+      ).rows[0];
+      await businessEvent(
+        db,
+        "QUIZ_ANSWERED",
+        user(req),
+        persisted.id,
+        "quiz:" + persisted.id,
+        { correct: persisted.correct, topic: req.params.topic },
+      );
+      return {
+        correct: persisted.correct,
+        answer: persisted.question_snapshot.answer,
+        explanation: persisted.question_snapshot.explanation,
+      };
+    }),
+  );
   app.get("/api/problems", async () => ({
     problems: (await c.db.query("SELECT * FROM problems ORDER BY id")).rows,
   }));
@@ -478,6 +523,14 @@ export async function createApp(c: Config) {
       const { rows } = await db.query(
         "INSERT INTO records(id,user_id,problem_id,language,source) VALUES($1,$2,$3,$4,$5) RETURNING *",
         [id(), user(req), p.id, input.language, p.starters[input.language]],
+      );
+      await businessEvent(
+        db,
+        "PRACTICE_STARTED",
+        user(req),
+        rows[0].id,
+        "practice:" + rows[0].id,
+        { problem: p.id, language: input.language },
       );
       return rows[0];
     });
@@ -563,6 +616,14 @@ export async function createApp(c: Config) {
         "UPDATE records SET latest_execution_id=$1,updated_at=now() WHERE id=$2",
         [run, r.id],
       );
+      await businessEvent(
+        db,
+        "EXECUTION_REQUESTED",
+        user(req),
+        run,
+        "execution-request:" + run,
+        { mode: v.mode, language: r.language, problem: r.problem_id },
+      );
       return (await db.query("SELECT * FROM executions WHERE id=$1", [run]))
         .rows[0];
     });
@@ -644,6 +705,14 @@ export async function createApp(c: Config) {
       await db.query(
         "INSERT INTO review_credit_events(id,allowance_id,review_id,request_ref,type) VALUES($1,$2,$3,$3,'RESERVE')",
         [id(), a.id, rid],
+      );
+      await businessEvent(
+        db,
+        "REVIEW_REQUESTED",
+        user(req),
+        rid,
+        "review-request:" + rid,
+        { language: r.language },
       );
       return (await db.query("SELECT * FROM reviews WHERE id=$1", [rid]))
         .rows[0];
@@ -789,7 +858,7 @@ export async function createApp(c: Config) {
     return c.db.tx(async (db) => {
       const e = (
         await db.query(
-          "SELECT e.*,r.problem_id FROM executions e JOIN records r ON r.id=e.record_id WHERE e.id=$1 AND e.lease_token=$2 AND e.status='RUNNING' AND e.lease_expires_at>now() AND r.expires_at>now() FOR UPDATE OF e",
+          "SELECT e.*,r.problem_id,r.user_id FROM executions e JOIN records r ON r.id=e.record_id WHERE e.id=$1 AND e.lease_token=$2 AND e.status='RUNNING' AND e.lease_expires_at>now() AND r.expires_at>now() FOR UPDATE OF e",
           [uuid.parse(req.params.id), v.token],
         )
       ).rows[0];
@@ -817,6 +886,17 @@ export async function createApp(c: Config) {
       await db.query(
         "UPDATE executions SET status=$2,result=$3,finished_at=now(),lease_token=NULL WHERE id=$1",
         [e.id, v.systemError ? "FAILED" : "SUCCEEDED", JSON.stringify(result)],
+      );
+      await businessEvent(
+        db,
+        "EXECUTION_FINISHED",
+        e.user_id,
+        e.id,
+        "execution-finish:" + e.id,
+        {
+          status: v.systemError ? "FAILED" : "SUCCEEDED",
+          verdict: v.result?.verdict ?? "SYSTEM_ERROR",
+        },
       );
       return { accepted: true };
     });

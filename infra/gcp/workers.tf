@@ -25,8 +25,8 @@ variable "rootfs_sha256" {
 }
 
 variable "worker_deletion_protection" {
-  type = bool
-  default = true
+  type        = bool
+  default     = true
   description = "Temporarily set false in a separate apply before an approved stateless worker image replacement; restore true in the replacement plan."
 }
 

@@ -30,6 +30,22 @@ const migrations = [
     CREATE TABLE fleet_controller(id integer PRIMARY KEY CHECK(id=1),token uuid,expires_at timestamptz);
     INSERT INTO fleet_controller(id) VALUES(1);`,
   },
+  {
+    version: 5,
+    sql: `
+    CREATE TABLE visitor_days(user_id uuid NOT NULL REFERENCES users ON DELETE CASCADE,day date NOT NULL,first_seen timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,day));
+    CREATE INDEX visitor_days_day ON visitor_days(day);
+    CREATE TABLE business_events(id uuid PRIMARY KEY,event_key text UNIQUE NOT NULL,type text NOT NULL,actor_id uuid REFERENCES users ON DELETE SET NULL,entity_id text,metadata jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX business_events_created ON business_events(created_at DESC);
+    CREATE INDEX business_events_type_created ON business_events(type,created_at);
+    CREATE TABLE support_tickets(id uuid PRIMARY KEY,user_id uuid NOT NULL REFERENCES users,request_key text NOT NULL,category text NOT NULL CHECK(category IN ('question','bug','billing','other')),subject text NOT NULL,body text NOT NULL,status text NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','IN_PROGRESS','RESOLVED')),reply text NOT NULL DEFAULT '',revision integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(user_id,request_key));
+    CREATE INDEX support_tickets_status ON support_tickets(status,created_at DESC);
+    CREATE TABLE cost_entries(id uuid PRIMARY KEY,source_key text UNIQUE NOT NULL,usage_date date NOT NULL,service text NOT NULL,currency text NOT NULL CHECK(currency IN ('KRW','USD')),amount numeric(18,6) NOT NULL,source text NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX cost_entries_date ON cost_entries(usage_date);
+    CREATE TABLE revenue_entries(id uuid PRIMARY KEY,provider_event_id text UNIQUE NOT NULL,kind text NOT NULL CHECK(kind IN ('PAYMENT','REFUND')),currency text NOT NULL CHECK(currency IN ('KRW','USD')),amount numeric(18,6) NOT NULL CHECK(amount>0),occurred_at timestamptz NOT NULL);
+    CREATE INDEX revenue_entries_date ON revenue_entries(occurred_at);
+  `,
+  },
 ];
 
 export async function migrate(db: DB) {

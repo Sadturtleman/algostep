@@ -12,7 +12,10 @@ const app = await createApp({
   sessionSecret: "e2e-only",
   runnerToken: "e2e-runner-secret",
   llmEnabled: false,
+  adminEmails: ["admin@example.test"],
   verifyGoogle: async (token) => {
+    if (token === "integration-admin-token")
+      return { sub: "e2e-admin", name: "관리자", email: "admin@example.test" };
     if (token !== "integration-test-token")
       throw new Error("Invalid fixture token");
     return {
