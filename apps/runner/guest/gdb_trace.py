@@ -1,6 +1,27 @@
-import gdb, json
+import gdb, json, time
 steps=[]
 seen=set()
+encoded=[]
+trace_bytes=2
+cut=False
+deadline=time.monotonic()+6
+
+def checkpoint(truncated):
+    # The outer process may enforce its deadline with SIGKILL. Preserve an
+    # already bounded prefix while tracing, not only at normal debugger exit.
+    with open('/tmp/work/trace.json','w') as f:f.write('['+','.join(encoded)+']')
+    if truncated:
+        with open('/tmp/work/trace-truncated','w') as f:f.write('1')
+
+def append_step(step):
+    global trace_bytes,cut
+    raw=json.dumps(step,ensure_ascii=True,allow_nan=False)
+    if trace_bytes+len(raw)+1>60000:
+        cut=True
+        return False
+    steps.append(step);encoded.append(raw);trace_bytes+=len(raw)+1
+    if len(steps)%8==0:checkpoint(True)
+    return True
 def safe(value,depth=0):
     if depth>5:return '[depth limit]'
     try:
@@ -45,22 +66,24 @@ def capture():
     while f and len(stack)<32:
         if f.find_sal().symtab and f.find_sal().symtab.filename.endswith('main.cpp'):stack.append((f.name() or '?')[:120])
         f=f.older()
-    steps.append({'line':sal.line,'event':'line','locals':variables,'stack':stack})
+    append_step({'line':sal.line,'event':'line','locals':variables,'stack':stack})
 try:
     gdb.execute('set pagination off');gdb.execute('set confirm off');gdb.execute('set print elements 30')
     gdb.execute('set exec-wrapper /single-thread')
     gdb.execute('skip -gfi /usr/include/*');gdb.execute('skip -gfi /usr/lib/*')
     gdb.execute('break main')
     gdb.execute('run < /tmp/work/stdin > /tmp/work/debug-out 2> /tmp/work/debug-err',to_string=True)
-    while len(steps)<2000 and gdb.selected_inferior().pid:
+    while len(steps)<2000 and not cut and gdb.selected_inferior().pid:
         capture()
+        if cut or time.monotonic()>=deadline:
+            cut=True
+            break
         gdb.execute('step',to_string=True)
 except Exception:pass
 finally:
-    raw=json.dumps(steps,ensure_ascii=True,allow_nan=False)
-    cut=len(steps)>=2000
-    while len(raw)>60000 and steps:
-        cut=True;steps.pop();raw=json.dumps(steps,ensure_ascii=True,allow_nan=False)
-    with open('/tmp/work/trace.json','w') as f:f.write(raw)
-    if cut:
-        with open('/tmp/work/trace-truncated','w') as f:f.write('1')
+    cut=cut or len(steps)>=2000
+    checkpoint(cut)
+    if not cut:
+        import os
+        try:os.unlink('/tmp/work/trace-truncated')
+        except FileNotFoundError:pass

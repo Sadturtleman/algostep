@@ -1,6 +1,7 @@
 import type { DB } from "./db.js";
 import { seedCurriculum } from "./curriculum.js";
 import { seedPractice } from "./practice.js";
+import { seedExtendedPractice } from "./extended-practice.js";
 export const languages = ["python", "cpp", "java"] as const;
 const pyBinary = `n = int(input())\na = list(map(int, input().split()))\ntarget = int(input())\nleft, right = 0, n - 1\nanswer = -1\nwhile left <= right:\n    mid = (left + right) // 2\n    if a[mid] == target:\n        answer = mid\n        break\n    if a[mid] < target:\n        left = mid + 1\n    else:\n        right = mid - 1\nprint(answer)\n`;
 const cppBinary = `#include <iostream>\n#include <vector>\nusing namespace std;\nint main() {\n    int n, target; cin >> n; vector<int> a(n);\n    for (auto &x : a) cin >> x;\n    cin >> target; int left=0, right=n-1, answer=-1;\n    while (left<=right) {\n        int mid=left+(right-left)/2;\n        if(a[mid]==target) { answer=mid; break; }\n        if(a[mid]<target) left=mid+1; else right=mid-1;\n    }\n    cout << answer << '\\n';\n}\n`;
@@ -240,9 +241,11 @@ export async function seed(db: DB) {
           JSON.stringify({ question, options, answer, explanation }),
         ],
       );
-    for (const p of problems)
+    for (const p of problems) {
+      const bounds =
+        p.topic === "bfs" ? ["O(V + E log E)", "O(V + E)"] : ["O(n)", "O(n)"];
       await tx.query(
-        "INSERT INTO problems(id,topic_id,version,title,statement,input_spec,output_spec,constraints_text,tests,references_code,starters) VALUES($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING",
+        "INSERT INTO problems(id,topic_id,version,title,statement,input_spec,output_spec,constraints_text,tests,references_code,starters,complexity_time,complexity_space) VALUES($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING",
         [
           p.id,
           p.topic,
@@ -254,8 +257,16 @@ export async function seed(db: DB) {
           JSON.stringify(p.tests),
           JSON.stringify(p.refs),
           JSON.stringify(starters),
+          ...bounds,
         ],
       );
+      // Only fill legacy metadata when the published reference is unchanged.
+      await tx.query(
+        "UPDATE problems SET complexity_time=COALESCE(complexity_time,$2),complexity_space=COALESCE(complexity_space,$3) WHERE id=$1 AND references_code=$4::jsonb AND (complexity_time IS NULL OR complexity_space IS NULL)",
+        [p.id, ...bounds, JSON.stringify(p.refs)],
+      );
+    }
     await seedPractice(tx);
+    await seedExtendedPractice(tx);
   });
 }
