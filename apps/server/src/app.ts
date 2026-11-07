@@ -28,8 +28,18 @@ import { businessEvent, visit } from "./business.js";
 import { analyticsContext, readAnalyticsContext } from "./analytics-context.js";
 import { registerClientEvents } from "./client-events.js";
 import { ga4Config } from "./ga4.js";
+import {
+  productMode,
+  productDatabase,
+  excludedMvpPath,
+  executionLimits,
+  isMvpTopic,
+  mvpTopics,
+  type ProductMode,
+} from "./product.js";
 
 type Config = {
+  productMode?: ProductMode;
   db: DB;
   origin: string;
   googleClientId: string;
@@ -48,7 +58,10 @@ type Config = {
     token: string,
   ) => Promise<{ sub: string; email: string; name: string; nonce?: string }>;
 };
-const source = z.string().max(65536),
+const source = z
+    .string()
+    .max(65536)
+    .refine((v) => Buffer.byteLength(v, "utf8") <= 65536),
   key = z.string().min(8).max(100),
   uuid = z.string().uuid();
 const codeInput = z.object({ language: z.enum(languages), source });
@@ -89,6 +102,9 @@ const resultInput = z.object({
   runnerImage: z.string().max(256),
 });
 export async function createApp(c: Config) {
+  const mode = c.productMode ?? productMode();
+  const mvp = mode === "mvp";
+  c = { ...c, db: productDatabase(c.db, mode) };
   const testRateLimit =
     process.env.NODE_ENV === "test" && !c.production && c.verifyGoogle
       ? c.testRateLimit
@@ -97,7 +113,7 @@ export async function createApp(c: Config) {
     (c.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean),
   );
   const isAdmin = (account: any) =>
-    adminEmails.has(account.email.toLowerCase());
+    !mvp && adminEmails.has(account.email.toLowerCase());
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
     bodyLimit: 2 * 1024 * 1024,
@@ -155,6 +171,12 @@ export async function createApp(c: Config) {
   app.addHook("preHandler", async (req: any, reply) => {
     if (!req.routeOptions.url?.startsWith("/api/")) return;
     const rawPath = req.url.split("?")[0];
+    if (mvp && excludedMvpPath(rawPath))
+      throw new DomainError(
+        404,
+        "FEATURE_DISABLED",
+        "MVP에서 제공하지 않는 기능이에요.",
+      );
     if (
       !rawPath.startsWith("/api/") ||
       rawPath.includes("%") ||
@@ -261,8 +283,10 @@ export async function createApp(c: Config) {
         "화면을 다시 열고 시도해 주세요.",
       );
   });
-  await registerAdmin(app, c.db);
-  await registerClientEvents(app, c.db);
+  if (!mvp) {
+    await registerAdmin(app, c.db);
+    await registerClientEvents(app, c.db);
+  }
   const user = (req: any) => req.user.id as string;
   app.get("/api/operations/metrics", async () => ({
     reviewApiUsage30Days: (
@@ -290,7 +314,7 @@ export async function createApp(c: Config) {
     ).rows,
   }));
   app.post("/api/operations/maintenance", async () => {
-    await maintenance(c.db, c.storage);
+    await maintenance(c.db, c.storage, mode);
     return { ok: true };
   });
   app.get("/api/operations/ready", async () => {
@@ -323,9 +347,29 @@ export async function createApp(c: Config) {
   );
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/config", async () => ({
-    ga4MeasurementId: ga4Config()?.measurementId ?? null,
+    productMode: mode,
+    features: {
+      admin: !mvp,
+      analytics: !mvp,
+      reviews: !mvp && c.llmEnabled,
+      payments: false,
+      pdf: !mvp,
+      drive: !mvp,
+      android: !mvp,
+      support: !mvp,
+      predictionSync: false,
+    },
+    topicIds: mvp ? mvpTopics : null,
+    limits: {
+      ...executionLimits,
+      sourceBytes: 65536,
+      inputBytes: 65536,
+      recordCount: 100,
+      retentionDays: 30,
+    },
+    ga4MeasurementId: mvp ? null : (ga4Config()?.measurementId ?? null),
     googleClientId: c.googleClientId,
-    reviewEnabled: c.llmEnabled,
+    reviewEnabled: !mvp && c.llmEnabled,
     paymentEnabled: false,
     languages: ["Python 3.10", "C++20", "Java 21"],
   }));
@@ -349,6 +393,12 @@ export async function createApp(c: Config) {
           client: z.enum(["web", "android"]).default("web"),
         })
         .parse(req.body);
+      if (mvp && client === "android")
+        throw new DomainError(
+          403,
+          "FEATURE_DISABLED",
+          "MVP에서는 웹 로그인을 사용해 주세요.",
+        );
       let p;
       try {
         p = await verify(credential);
@@ -450,12 +500,19 @@ export async function createApp(c: Config) {
       await c.db.query(
         "SELECT id,title,category,priority,body,complexity,quiz FROM topics ORDER BY priority,id",
       )
-    ).rows.map((t) => {
-      const quizzes = topicQuizzes(t as any).map(
-        ({ answer, explanation, ...q }) => q,
-      );
-      return { ...t, quiz: quizzes[0], quizzes };
-    }),
+    ).rows
+      .filter((t) => !mvp || isMvpTopic(t.id))
+      .map((t) => {
+        const quizzes = topicQuizzes(t as any).map(
+          ({ answer, explanation, ...q }) => q,
+        );
+        return {
+          ...t,
+          ...(mvp ? { exampleTopicId: t.id } : {}),
+          quiz: quizzes[0],
+          quizzes,
+        };
+      }),
   }));
   app.post("/api/quiz/:topic", async (req: any) =>
     c.db.tx(async (db) => {
@@ -469,7 +526,7 @@ export async function createApp(c: Config) {
       const { rows } = await db.query("SELECT * FROM topics WHERE id=$1", [
         req.params.topic,
       ]);
-      if (!rows[0])
+      if (!rows[0] || (mvp && !isMvpTopic(rows[0].id)))
         throw new DomainError(404, "NOT_FOUND", "학습 내용을 찾을 수 없어요.");
       const q = topicQuizzes(rows[0] as any).find((q) => q.id === v.questionId);
       if (!q) throw new DomainError(404, "NOT_FOUND", "문항을 찾을 수 없어요.");
@@ -521,7 +578,9 @@ export async function createApp(c: Config) {
     }),
   );
   app.get("/api/problems", async () => ({
-    problems: (await c.db.query("SELECT * FROM problems ORDER BY id")).rows,
+    problems: (
+      await c.db.query("SELECT * FROM problems ORDER BY id")
+    ).rows.filter((p) => !mvp || isMvpTopic(p.topic_id)),
   }));
   app.get("/api/records", async (req) => ({
     records: (
@@ -542,7 +601,8 @@ export async function createApp(c: Config) {
       const p = (
         await db.query("SELECT * FROM problems WHERE id=$1", [input.problemId])
       ).rows[0];
-      if (!p) throw new DomainError(404, "NOT_FOUND", "문제를 찾을 수 없어요.");
+      if (!p || (mvp && !isMvpTopic(p.topic_id)))
+        throw new DomainError(404, "NOT_FOUND", "문제를 찾을 수 없어요.");
       const all = (
         await db.query(
           "SELECT id,expires_at FROM records WHERE user_id=$1 ORDER BY created_at,id FOR UPDATE",
@@ -571,12 +631,14 @@ export async function createApp(c: Config) {
   });
   app.get("/api/records/:id", async (req: any) => {
     const r = await ownRecord(c.db, user(req), uuid.parse(req.params.id));
-    const reviews = (
-      await c.db.query(
-        "SELECT v.*,s.source,s.language FROM reviews v JOIN code_snapshots s ON s.id=v.snapshot_id WHERE v.record_id=$1 ORDER BY v.created_at DESC",
-        [r.id],
-      )
-    ).rows;
+    const reviews = mvp
+      ? []
+      : (
+          await c.db.query(
+            "SELECT v.*,s.source,s.language FROM reviews v JOIN code_snapshots s ON s.id=v.snapshot_id WHERE v.record_id=$1 ORDER BY v.created_at DESC",
+            [r.id],
+          )
+        ).rows;
     const execution = r.latest_execution_id
       ? (
           await c.db.query("SELECT * FROM executions WHERE id=$1", [
@@ -629,7 +691,11 @@ export async function createApp(c: Config) {
         requestKey: key,
         revision: z.number().int().nonnegative(),
         mode: z.enum(["judge", "custom"]).default("judge"),
-        input: z.string().max(65536).optional(),
+        input: z
+          .string()
+          .max(65536)
+          .refine((v) => Buffer.byteLength(v, "utf8") <= 65536)
+          .optional(),
       })
       .parse(req.body);
     return c.db.tx(async (db) => {
@@ -901,14 +967,7 @@ export async function createApp(c: Config) {
             e.mode === "custom"
               ? [{ input: e.custom_input, expected: null }]
               : info.tests,
-          limits: {
-            testMs: 10000,
-            memoryBytes: 536870912,
-            compileMs: 30000,
-            outputBytes: 65536,
-            traceSteps: 2000,
-            submissionMs: 120000,
-          },
+          limits: executionLimits,
         },
       };
     }),

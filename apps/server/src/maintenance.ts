@@ -6,9 +6,25 @@ import { processReview, recoverReviews } from "./review-worker.js";
 import { deleteObjects, type ObjectStorage } from "./object-storage.js";
 import { deliverGa4 } from "./ga4.js";
 import { deliverAmplitude } from "./amplitude.js";
-export async function maintenance(db: DB, storage?: ObjectStorage) {
+import { productMode, productDatabase, type ProductMode } from "./product.js";
+export async function maintenance(
+  db: DB,
+  storage?: ObjectStorage,
+  mode: ProductMode = productMode(),
+) {
+  db = productDatabase(db, mode);
   await cleanExpired(db);
-  await recoverReviews(db);
+  // Recovery must run even if no worker remains alive to request another job.
+  await db.query(
+    "UPDATE executions SET status='FAILED',result=$1,finished_at=now(),lease_token=NULL WHERE status='RUNNING' AND lease_expires_at<now()",
+    [
+      JSON.stringify({
+        systemError: "RUNNER_INTERRUPTED",
+        message: "실행 환경 연결이 끊겼어요. 다시 실행해 주세요.",
+      }),
+    ],
+  );
+  if (mode === "full") await recoverReviews(db);
   await deleteObjects(db, storage);
   await db.query("DELETE FROM sessions WHERE expires_at<=now()");
   await db.query("DELETE FROM auth_challenges WHERE expires_at<=now()");
@@ -22,13 +38,13 @@ export async function maintenance(db: DB, storage?: ObjectStorage) {
     } catch (e) {
       fleetError = e;
     }
-  const llm = llmOptions();
+  const llm = mode === "full" ? llmOptions() : undefined;
   if (llm) await processReview(db, llm);
   // Independent destinations: one provider failure must not starve the other.
-  const delivered = await Promise.allSettled([
-    deliverGa4(db),
-    deliverAmplitude(db),
-  ]);
+  const delivered =
+    mode === "full"
+      ? await Promise.allSettled([deliverGa4(db), deliverAmplitude(db)])
+      : [];
   if (delivered.some((r) => r.status === "rejected"))
     throw new Error("ANALYTICS_MAINTENANCE_FAILED");
   if (fleetError) throw fleetError;

@@ -4,10 +4,12 @@ import { database } from "./db.js";
 import { seed } from "./content.js";
 import { createApp } from "./app.js";
 import { cleanExpired } from "./domain.js";
-import { processReview, recoverReviews } from "./review-worker.js";
+import { recoverReviews } from "./review-worker.js";
 import { GcsStorage } from "./object-storage.js";
 import { maintenance } from "./maintenance.js";
 import { registerWeb } from "./web-static.js";
+import { productMode, productDatabase } from "./product.js";
+const mode = productMode();
 const production = process.env.NODE_ENV === "production";
 if (
   production &&
@@ -28,15 +30,19 @@ if (
   throw new Error(
     "Production requires PostgreSQL, HTTPS, Google OAuth and strong secrets.",
   );
-const db = await database(
-  process.env.DATABASE_URL,
-  resolve(process.env.LOCAL_DATABASE_PATH ?? "../../.data/postgres"),
+const db = productDatabase(
+  await database(
+    process.env.DATABASE_URL,
+    resolve(process.env.LOCAL_DATABASE_PATH ?? "../../.data/postgres"),
+  ),
+  mode,
 );
 await seed(db);
-await recoverReviews(db);
+if (mode === "full") await recoverReviews(db);
 await cleanExpired(db);
-const llmEnabled = !!llmOptions();
+const llmEnabled = mode === "full" && !!llmOptions();
 const app = await createApp({
+  productMode: mode,
   db,
   origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",

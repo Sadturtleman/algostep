@@ -3,6 +3,7 @@ import pg from "pg";
 import { readFileSync } from "node:fs";
 import { migrate } from "./migrations.js";
 export interface DB {
+  businessEventsEnabled?: boolean;
   query(sql: string, args?: any[]): Promise<{ rows: Record<string, any>[] }>;
   tx<T>(fn: (db: DB) => Promise<T>): Promise<T>;
   close(): Promise<void>;
