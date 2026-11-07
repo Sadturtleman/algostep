@@ -1,3 +1,4 @@
+import { track } from "./analytics.js";
 import React, { useEffect, useState } from "react";
 import { api, post } from "./api.js";
 import { SupportPanel, Pager, displayTime } from "./SupportPanel.js";
@@ -33,6 +34,9 @@ export function AdminDashboard() {
     [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    track("ADMIN_SECTION_VIEWED", { section: tab });
+  }, [tab]);
   useEffect(() => {
     let current = true;
     setData(null);
@@ -438,6 +442,7 @@ function EventList({ query, events }: { query: string; events: any[] }) {
   const [type, setType] = useState("");
   return (
     <>
+      <AnalyticsConnections />
       <label className="dashboard-filter">
         이벤트 종류
         <select value={type} onChange={(e) => setType(e.target.value)}>
@@ -465,6 +470,80 @@ function EventList({ query, events }: { query: string; events: any[] }) {
         코드·문의 본문·인증 토큰은 비즈니스 로그에 저장하지 않습니다.
       </p>
     </>
+  );
+}
+function AnalyticsConnections() {
+  const [data, setData] = useState<any>(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api("/admin/analytics")
+      .then((d) => {
+        if (active) setData(d);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const labels: Record<string, string> = {
+    PENDING: "대기",
+    PROCESSING: "전송 중",
+    ACCEPTED: "HTTP 수신 확인",
+    INGESTED: "수집 응답 확인",
+    REJECTED: "거절",
+    UNCERTAIN: "수신 여부 불명",
+    EXPIRED: "전송 기한 만료",
+  };
+  return (
+    <section className="dashboard-panel">
+      <h2>GA4 · Amplitude 연결 상태</h2>
+      {error && <p role="alert">{error}</p>}
+      {!data && !error && <p>연결 상태를 불러오는 중…</p>}
+      {data && (
+        <>
+          <p>
+            GA4:{" "}
+            {data.ga4.configured
+              ? `전송 설정 완료 · ${data.ga4.measurementId}`
+              : "연결 설정 대기"}
+          </p>
+          <p>
+            Amplitude:{" "}
+            {data.amplitude.configured ? "전송 설정 완료" : "연결 설정 대기"}{" "}
+            {data.amplitude.url && (
+              <a href={data.amplitude.url} target="_blank" rel="noreferrer">
+                분석 대시보드 열기
+              </a>
+            )}
+          </p>
+          <DataTable
+            headers={["분석 서비스", "전송 상태", "이벤트 수", "상태 코드"]}
+            rows={[
+              ...data.ga4.states.map((r: any) => ({ ...r, provider: "GA4" })),
+              ...data.amplitude.states.map((r: any) => ({
+                ...r,
+                provider: "Amplitude",
+              })),
+            ].map((r: any) => [
+              r.provider,
+              labels[r.status] ?? r.status,
+              number(r.count),
+              r.last_code ?? "—",
+            ])}
+          />
+          <p className="muted">
+            현재 {data.catalog.length}종 이벤트를 수집합니다. GA4의 HTTP 수신
+            확인은 보고서 반영 완료를 뜻하지 않습니다. 수신 여부가 불명확한 건은
+            중복 집계를 막기 위해 자동 재전송하지 않으며, 원본 이벤트는
+            데이터베이스에 남습니다. Amplitude는 동일 이벤트 식별자로
+            재시도하며, 최초 전송 후 6일이 지나면 재시도를 종료합니다.
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 function Finance({

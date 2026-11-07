@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { database } from "./db.js";
+import { businessEvent } from "./business.js";
+import { randomUUID } from "node:crypto";
 const short = z.string().min(1).max(200),
   code = z.string().min(1).max(65536);
 const languages = z.object({ python: code, cpp: code, java: code });
@@ -104,6 +106,14 @@ if (process.argv[1]?.replaceAll("\\", "/").match(/content-admin\.(ts|js)$/)) {
               problems: data.problems.map((x) => x.id),
             }),
           ],
+        );
+        await businessEvent(
+          tx,
+          "CONTENT_PUBLISHED",
+          null,
+          null,
+          "publish:" + randomUUID(),
+          { topics: data.topics.length, problems: data.problems.length },
         );
       });
       console.log("Catalog published atomically.");

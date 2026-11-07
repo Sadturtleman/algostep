@@ -310,8 +310,8 @@ test("cost import is atomic and repeatable; currencies and refunds stay separate
   });
   assert.equal(operational.statusCode, 200);
   await db.query(
-    "INSERT INTO revenue_entries(id,provider_event_id,kind,currency,amount,occurred_at) VALUES($1,'payment-001','PAYMENT','KRW',3000,now()),($2,'refund-001','REFUND','KRW',1000,now())",
-    [id(), id()],
+    "INSERT INTO revenue_entries(id,provider_event_id,kind,currency,amount,occurred_at) VALUES($1,'payment-001','PAYMENT','KRW',3000,$3::date::timestamp AT TIME ZONE 'Asia/Seoul'),($2,'refund-001','REFUND','KRW',1000,($3::date::timestamp+interval '1 minute') AT TIME ZONE 'Asia/Seoul'),($4,'previous-day','PAYMENT','KRW',9999,($3::date::timestamp-interval '1 second') AT TIME ZONE 'Asia/Seoul'),($5,'next-day','PAYMENT','KRW',9999,($3::date+1)::timestamp AT TIME ZONE 'Asia/Seoul')",
+    [id(), id(), day, id(), id()],
   );
   const r = await request(
     admin,
@@ -374,7 +374,7 @@ test("business events remain after record deletion and retry keys do not inflate
   );
   await assert.rejects(
     db.tx(async (tx) => {
-      await businessEvent(tx, "ROLLBACK_EVENT", student.id, null, "rollback");
+      await businessEvent(tx, "LOGOUT", student.id, null, "rollback");
       throw new Error("rollback");
     }),
   );

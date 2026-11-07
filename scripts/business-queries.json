@@ -1,0 +1,54 @@
+[
+  {
+    "name": "누적·일·주·월 접속자",
+    "query": "SELECT count(DISTINCT user_id) AS cumulative_visitors,count(DISTINCT user_id) FILTER(WHERE day_kst=(now() AT TIME ZONE 'Asia/Seoul')::date) AS daily_visitors,count(DISTINCT user_id) FILTER(WHERE day_kst>=date_trunc('week',now() AT TIME ZONE 'Asia/Seoul')::date) AS weekly_visitors,count(DISTINCT user_id) FILTER(WHERE day_kst>=date_trunc('month',now() AT TIME ZONE 'Asia/Seoul')::date) AS monthly_visitors FROM algostep.analytics_visitors"
+  },
+  {
+    "name": "일별 접속자",
+    "query": "SELECT day_kst,count(DISTINCT user_id) AS visitors FROM algostep.analytics_visitors WHERE day_kst >= (now() AT TIME ZONE 'Asia/Seoul')::date-89 GROUP BY day_kst ORDER BY day_kst"
+  },
+  {
+    "name": "주별 접속자",
+    "query": "SELECT date_trunc('week',day_kst)::date AS week_kst,count(DISTINCT user_id) AS visitors FROM algostep.analytics_visitors WHERE day_kst >= date_trunc('week',now() AT TIME ZONE 'Asia/Seoul')::date-interval '11 weeks' GROUP BY 1 ORDER BY 1"
+  },
+  {
+    "name": "월별 접속자",
+    "query": "SELECT date_trunc('month',day_kst)::date AS month_kst,count(DISTINCT user_id) AS visitors FROM algostep.analytics_visitors WHERE day_kst >= date_trunc('month',now() AT TIME ZONE 'Asia/Seoul')::date-interval '11 months' GROUP BY 1 ORDER BY 1"
+  },
+  {
+    "name": "가입 사용자",
+    "query": "SELECT count(*) AS total_users,count(*) FILTER(WHERE registered_at_kst >= date_trunc('month',now() AT TIME ZONE 'Asia/Seoul')) AS new_users_this_month FROM algostep.analytics_users"
+  },
+  {
+    "name": "전체 비즈니스 이벤트",
+    "query": "SELECT event_type,ga4_event_name,count(*) AS events,count(DISTINCT user_id) AS users FROM algostep.analytics_events WHERE occurred_at_kst >= (now() AT TIME ZONE 'Asia/Seoul')-interval '30 days' GROUP BY 1,2 ORDER BY events DESC"
+  },
+  {
+    "name": "학습 활동별 고유 사용자",
+    "query": "SELECT event_type,count(DISTINCT user_id) AS users,count(*) AS events FROM algostep.analytics_events WHERE event_type IN ('SCREEN_VIEWED','QUIZ_ANSWERED','PRACTICE_STARTED','EXECUTION_REQUESTED','EXECUTION_FINISHED','REVIEW_REQUESTED','REVIEW_SUCCEEDED') AND occurred_at_kst >= (now() AT TIME ZONE 'Asia/Seoul')-interval '30 days' GROUP BY 1 ORDER BY 1"
+  },
+  {
+    "name": "실행 결과",
+    "query": "SELECT metadata->>'verdict' AS verdict,count(*) AS executions FROM algostep.analytics_events WHERE event_type='EXECUTION_FINISHED' AND occurred_at_kst >= (now() AT TIME ZONE 'Asia/Seoul')-interval '30 days' GROUP BY 1 ORDER BY 2 DESC"
+  },
+  {
+    "name": "수집된 실제 비용",
+    "query": "SELECT day_kst,service,currency,amount FROM algostep.analytics_costs WHERE day_kst >= (now() AT TIME ZONE 'Asia/Seoul')::date-89 ORDER BY day_kst,service,currency"
+  },
+  {
+    "name": "매출과 환불",
+    "query": "SELECT day_kst,currency,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE 0 END) AS gross,sum(CASE WHEN kind='REFUND' THEN amount ELSE 0 END) AS refunds,sum(CASE WHEN kind='PAYMENT' THEN amount ELSE -amount END) AS net FROM algostep.analytics_revenue WHERE day_kst >= (now() AT TIME ZONE 'Asia/Seoul')::date-89 GROUP BY 1,2 ORDER BY 1,2"
+  },
+  {
+    "name": "문의 처리 현황",
+    "query": "SELECT category,status,sum(inquiries) AS inquiries FROM algostep.analytics_inquiries GROUP BY 1,2 ORDER BY 1,2"
+  },
+  {
+    "name": "GA4 전송 상태",
+    "query": "SELECT * FROM algostep.analytics_delivery_status ORDER BY status,event_type"
+  },
+  {
+    "name": "최근 이벤트 상세",
+    "query": "SELECT event_id,event_type,user_id,occurred_at_kst,metadata FROM algostep.analytics_events ORDER BY created_at DESC,event_id LIMIT 2000"
+  }
+]

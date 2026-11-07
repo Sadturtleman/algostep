@@ -1,3 +1,9 @@
+import {
+  track,
+  setAnalyticsUser,
+  initializeGoogleTag,
+  flushAnalytics,
+} from "./analytics.js";
 import { QuizPanel } from "./QuizPanel.js";
 import { AdminDashboard } from "./AdminDashboard.js";
 import { SupportPanel } from "./SupportPanel.js";
@@ -74,6 +80,49 @@ function App() {
     runKey = useRef<string | null>(null),
     reviewKey = useRef<string | null>(null);
   const shownExecutionErrors = useRef(new Set<string>());
+  useEffect(() => {
+    setAnalyticsUser(user?.id ?? null);
+    if (user?.analyticsId)
+      void initializeGoogleTag(
+        config?.ga4MeasurementId ?? null,
+        user.analyticsId,
+      );
+  }, [user?.id, user?.analyticsId, config?.ga4MeasurementId]);
+  useEffect(() => {
+    if (!user) return;
+    const screen =
+      mobile &&
+      ["workspace", "problems", "history", "challenges"].includes(page)
+        ? "home"
+        : page;
+    track("SCREEN_VIEWED", {
+      screen,
+      ...(["lesson", "practice", "challenges"].includes(screen) && topic?.id
+        ? { topic: topic.id }
+        : {}),
+    });
+  }, [user?.id, page, topic?.id, mobile]);
+  useEffect(() => {
+    if (!user || !filter.trim()) return;
+    const timer = setTimeout(
+      () =>
+        track("SEARCH_USED", {
+          result_count: topics.filter((t) => t.title.includes(filter.trim()))
+            .length,
+        }),
+      600,
+    );
+    return () => clearTimeout(timer);
+  }, [user?.id, filter, topics]);
+  useEffect(() => {
+    if (user && error)
+      track("CLIENT_ERROR", {
+        code: /^[A-Z0-9_]{1,80}$/.test(error.code)
+          ? error.code
+          : "UNKNOWN_ERROR",
+      });
+  }, [user?.id, error]);
+
   useEffect(() => {
     if (!user) return;
     let trackedDay = "";
@@ -436,7 +485,15 @@ function App() {
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
+      track("PDF_EXPORTED", {
+        destination: drive ? "drive" : "download",
+        success: true,
+      });
     } catch (e) {
+      track("PDF_EXPORTED", {
+        destination: drive ? "drive" : "download",
+        success: false,
+      });
       fail(e);
     } finally {
       setBusy(false);
@@ -514,7 +571,11 @@ function App() {
         <button
           className="icon-button"
           aria-label="테마 변경"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          onClick={() => {
+            const next = theme === "dark" ? "light" : "dark";
+            setTheme(next);
+            track("THEME_CHANGED", { theme: next });
+          }}
         >
           {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
         </button>
@@ -523,6 +584,7 @@ function App() {
             className="account"
             onClick={() => {
               void save()
+                .then(() => flushAnalytics())
                 .then(() => post("/auth/logout", {}))
                 .then(() =>
                   window.AlgostepNative?.postMessage(
@@ -586,12 +648,14 @@ function App() {
             <button
               onClick={async () => {
                 if (error.status === 401) {
+                  track("ERROR_RECOVERY", { action: "retry" });
                   setUser(null);
                   setError(null);
                   return;
                 }
                 try {
                   if (!config) setConfig(await api("/config"));
+                  track("ERROR_RECOVERY", { action: "retry" });
                   if (error.code === "NETWORK_ERROR" && user) {
                     await loadData();
                     if (saveStatus === "저장 실패") await save();
@@ -822,7 +886,11 @@ function App() {
             </div>
             <nav className="category-nav" aria-label="학습 종류">
               {groups.map((group, i) => (
-                <a key={group.name} href={`#learning-category-${i}`}>
+                <a
+                  key={group.name}
+                  href={`#learning-category-${i}`}
+                  onClick={() => track("CATEGORY_SELECTED", { index: i })}
+                >
                   {group.name} <span>{group.topics.length}</span>
                 </a>
               ))}
@@ -1113,7 +1181,10 @@ function App() {
                     <button
                       key={k}
                       className={language === k ? "tab active" : "tab"}
-                      onClick={() => editCode(source, k)}
+                      onClick={() => {
+                        editCode(source, k);
+                        track("LANGUAGE_SELECTED", { language: k });
+                      }}
                     >
                       {String(v)}
                     </button>
@@ -1217,7 +1288,10 @@ function App() {
                       <button
                         key={k}
                         className={`tab ${tab === k ? "active" : ""}`}
-                        onClick={() => setTab(k)}
+                        onClick={() => {
+                          setTab(k);
+                          track("RESULT_TAB_VIEWED", { tab: k });
+                        }}
                       >
                         {v}
                       </button>
@@ -1262,7 +1336,12 @@ function App() {
                         <select
                           aria-label="표시할 테스트"
                           value={testIndex}
-                          onChange={(e) => setTestIndex(Number(e.target.value))}
+                          onChange={(e) => {
+                            setTestIndex(Number(e.target.value));
+                            track("TEST_SELECTED", {
+                              index: Number(e.target.value),
+                            });
+                          }}
                         >
                           {record.execution.result.tests.map(
                             (t: any, i: number) => (
@@ -1525,7 +1604,14 @@ class AppBoundary extends React.Component<
           화면을 다시 열어 주세요. 마지막 자동 저장 이후의 변경은 복구되지 않을
           수 있어요.
         </p>
-        <button onClick={() => location.reload()}>화면 다시 열기</button>
+        <button
+          onClick={() => {
+            track("ERROR_RECOVERY", { action: "reload" });
+            void flushAnalytics().finally(() => location.reload());
+          }}
+        >
+          화면 다시 열기
+        </button>
       </main>
     ) : (
       this.props.children

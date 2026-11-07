@@ -1,3 +1,4 @@
+import { analyticsHeaders } from "./analytics-context.js";
 let csrf = "";
 export const setCsrf = (value: string) => {
   csrf = value;
@@ -23,6 +24,7 @@ export async function api<T = any>(
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-Token": csrf,
+        ...analyticsHeaders(),
         ...options.headers,
       },
       signal: options.signal ?? AbortSignal.timeout(20000),

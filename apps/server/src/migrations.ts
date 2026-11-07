@@ -46,6 +46,31 @@ const migrations = [
     CREATE INDEX revenue_entries_date ON revenue_entries(occurred_at);
   `,
   },
+  {
+    version: 6,
+    sql: `
+    ALTER TABLE users ADD COLUMN analytics_id uuid NOT NULL DEFAULT gen_random_uuid();
+    CREATE UNIQUE INDEX users_analytics_id ON users(analytics_id);
+    ALTER TABLE business_events ADD COLUMN analytics_context jsonb NOT NULL DEFAULT '{}';
+    CREATE TABLE analytics_deliveries(event_id uuid PRIMARY KEY REFERENCES business_events ON DELETE CASCADE,status text NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','PROCESSING','ACCEPTED','REJECTED','UNCERTAIN','EXPIRED')),attempts integer NOT NULL DEFAULT 0,available_at timestamptz NOT NULL DEFAULT now(),lease_token uuid,lease_until timestamptz,last_code text,updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX analytics_deliveries_queue ON analytics_deliveries(status,available_at);
+    INSERT INTO analytics_deliveries(event_id) SELECT id FROM business_events;
+    CREATE VIEW analytics_events WITH (security_barrier=true) AS SELECT e.id AS event_id,e.type AS event_type,'as_' || lower(e.type) AS ga4_event_name,u.analytics_id::text AS user_id,e.created_at,e.created_at AT TIME ZONE 'Asia/Seoul' AS occurred_at_kst,e.metadata FROM business_events e LEFT JOIN users u ON u.id=e.actor_id;
+    CREATE VIEW analytics_visitors WITH (security_barrier=true) AS SELECT u.analytics_id::text AS user_id,v.day AS day_kst FROM visitor_days v JOIN users u ON u.id=v.user_id;
+    CREATE VIEW analytics_users WITH (security_barrier=true) AS SELECT analytics_id::text AS user_id,created_at,created_at AT TIME ZONE 'Asia/Seoul' AS registered_at_kst FROM users;
+    CREATE VIEW analytics_costs WITH (security_barrier=true) AS SELECT usage_date AS day_kst,service,currency,sum(amount) AS amount FROM cost_entries GROUP BY usage_date,service,currency;
+    CREATE VIEW analytics_revenue WITH (security_barrier=true) AS SELECT (occurred_at AT TIME ZONE 'Asia/Seoul')::date AS day_kst,currency,kind,sum(amount) AS amount FROM revenue_entries GROUP BY 1,2,3;
+    CREATE VIEW analytics_inquiries WITH (security_barrier=true) AS SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS day_kst,category,status,count(*) AS inquiries FROM support_tickets GROUP BY 1,2,3;
+    CREATE VIEW analytics_delivery_status WITH (security_barrier=true) AS SELECT e.type AS event_type,d.status,d.last_code,count(*) AS events,min(e.created_at) AS oldest_event,max(d.updated_at) AS last_update FROM analytics_deliveries d JOIN business_events e ON e.id=d.event_id GROUP BY 1,2,3;
+    REVOKE ALL ON analytics_events,analytics_visitors,analytics_users,analytics_costs,analytics_revenue,analytics_inquiries,analytics_delivery_status FROM PUBLIC;
+    `,
+  },
+  {
+    version: 7,
+    sql: `CREATE TABLE amplitude_deliveries(event_id uuid PRIMARY KEY REFERENCES business_events ON DELETE CASCADE,status text NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','PROCESSING','INGESTED','REJECTED','EXPIRED')),attempts integer NOT NULL DEFAULT 0,available_at timestamptz NOT NULL DEFAULT now(),first_attempt_at timestamptz,lease_token uuid,lease_until timestamptz,payload jsonb,last_code text,updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX amplitude_deliveries_queue ON amplitude_deliveries(status,available_at);
+    INSERT INTO amplitude_deliveries(event_id) SELECT id FROM business_events;`,
+  },
 ];
 
 export async function migrate(db: DB) {
