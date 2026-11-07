@@ -77,5 +77,7 @@ export function readRoute(path: string) {
     result.page = "admin";
     result.section = parts[1] ?? "overview";
   }
+  if (parts.length === 1 && ["plans", "checkout"].includes(parts[0]))
+    result.page = parts[0];
   return result;
 }

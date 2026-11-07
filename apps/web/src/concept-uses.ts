@@ -1,3 +1,4 @@
+import { focusedConcepts } from "../../server/src/focused-concepts.js";
 /** [When to use the concept, a concrete application]. */
 export const conceptUses: Record<string, [string, string]> = {
   array: [
@@ -189,3 +190,6 @@ export const conceptUses: Record<string, [string, string]> = {
     "다항식 계수 곱, 신호의 주파수 분석, 합으로 만들 수 있는 값의 개수 계산에 활용해요. 부동소수점 오차와 패딩 길이를 고려해야 해요.",
   ],
 };
+
+for (const c of focusedConcepts)
+  conceptUses[c.id] = [conceptUses[c.parent][0], c.example];

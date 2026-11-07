@@ -70,6 +70,7 @@ test("all P1 and P2 topics expose working scenarios and advanced diagram control
       .getByRole("button")
       .filter({ has: page.getByRole("heading", { name, exact: true }) })
       .click();
+    await page.getByRole("tab", { name: "단계별 예제", exact: true }).click();
     for (const v of ["0", "1", "2"]) {
       await page.getByLabel("예제 선택", { exact: true }).selectOption(v);
       await expect(
@@ -155,6 +156,7 @@ test("expanded quizzes and movable diagrams retain positions across steps", asyn
   await authenticate(page);
   await page.goto("/");
   await page.getByRole("button", { name: /너비 우선 탐색/ }).click();
+  await page.getByRole("tab", { name: "단계별 예제", exact: true }).click();
   await page.getByLabel("예제 선택", { exact: true }).selectOption("1");
   const node = page.locator('.diagram-node[data-node-id="0"]').first();
   await node.scrollIntoViewIfNeeded();
@@ -244,7 +246,7 @@ test("home groups all topics by type without priority labels and supports search
 }) => {
   await authenticate(page);
   await page.goto("/");
-  await expect(page.locator(".topic-card")).toHaveCount(47);
+  await expect(page.locator(".topic-card")).toHaveCount(200);
   await expect(
     page.getByRole("navigation", { name: "학습 종류" }),
   ).toBeVisible();
@@ -255,7 +257,7 @@ test("home groups all topics by type without priority labels and supports search
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "정렬 학습" }).locator(".topic-card"),
-  ).toHaveCount(6);
+  ).toHaveCount(25);
   expect(await page.locator("main").innerText()).not.toMatch(/\bP[012]\b/);
   await page.screenshot({
     path: "test-results/grouped-home.png",
@@ -263,11 +265,19 @@ test("home groups all topics by type without priority labels and supports search
   });
   await page.getByLabel("개념 검색").fill("동적 계획법");
   await expect(page.locator(".topic-section")).toHaveCount(1);
-  await expect(page.locator(".topic-card")).toHaveCount(4);
+  await expect(page.locator(".topic-card")).toHaveCount(17);
   await page.getByLabel("개념 검색").fill("없는개념xyz");
   await expect(page.getByRole("status")).toContainText("검색 결과가 없어요");
   await page.getByLabel("개념 검색").fill("FFT");
-  await page.locator(".topic-card").click();
+  await page
+    .locator(".topic-card")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "FFT와 다항식 곱셈",
+        exact: true,
+      }),
+    })
+    .click();
   await expect(
     page.getByRole("button", { name: "다른 문제 살펴보기" }),
   ).toHaveCount(0);
@@ -307,8 +317,9 @@ test("every concept includes a concrete purpose and application before the quiz 
 }) => {
   await authenticate(page);
   await page.goto("/");
+  test.setTimeout(180000);
   const { topics } = await (await page.request.get("/api/topics")).json();
-  expect(topics).toHaveLength(47);
+  expect(topics).toHaveLength(200);
   for (const topic of topics) {
     await page
       .getByRole("button")
@@ -557,7 +568,14 @@ test("mobile P0 examples accept input and display sorting and references", async
   await authenticate(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.getByRole("button", { name: /버블 정렬/ }).click();
+  await page
+    .locator(".topic-card")
+    .filter({
+      has: page.getByRole("heading", { name: "버블 정렬", exact: true }),
+    })
+    .click();
+  await page.getByRole("tab", { name: "단계별 예제", exact: true }).click();
+  await page.getByText("입력값 직접 바꾸기", { exact: true }).click();
   await page.getByLabel("예제 값", { exact: true }).fill("3, 1, 2");
   await page.getByRole("button", { name: "예제 적용 · 처음부터" }).click();
   const next = page.getByRole("button", { name: "다음 단계", exact: true });
@@ -568,6 +586,7 @@ test("mobile P0 examples accept input and display sorting and references", async
   ).toHaveText(["1", "2", "3"]);
   await page.getByRole("button", { name: "학습 목록", exact: true }).click();
   await page.getByRole("button", { name: /단일 연결 리스트/ }).click();
+  await page.getByRole("tab", { name: "단계별 예제", exact: true }).click();
   await page.getByRole("button", { name: "다음 단계", exact: true }).click();
   await expect(
     page.getByRole("img", { name: "객체 필드와 참조 관계" }),

@@ -1,10 +1,14 @@
+import {
+  focusedById,
+  practiceTopic,
+} from "../../server/src/focused-concepts.js";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   checkpoints,
   matchesAnswer,
   type LearningFrame,
 } from "./prediction-model.js";
-import { Structure } from "./visualization.js";
+import { Structure, LessonDiagram } from "./visualization.js";
 import { ObjectGraph } from "./ObjectGraph.js";
 import {
   DiagramCanvas,
@@ -62,43 +66,111 @@ export function ExampleAnimation({
   );
   const [version, setVersion] = useState(0);
   const mode = theme === "dark" ? "dark" : "light";
+  const [modeTab, setModeTab] = useState("animation");
+  const selectMode = (mode: string) => {
+    setModeTab(mode);
+    track("EXAMPLE_MODE_SELECTED", { topic, mode });
+  };
   return (
     <section className="panel example-animation">
       <h2>움직임으로 살펴보기</h2>
       <p>예시 입력에서 상태가 바뀌는 과정을 살펴보세요.</p>
-      <img
-        key={`${topic}-${mode}-${version}-${playing}`}
-        src={`/learning/${topic}-${mode}.${playing ? "gif" : "png"}`}
-        alt={`${title} 예시 동작${playing ? " 애니메이션" : " 첫 장면"}`}
-        width="960"
-        height="600"
-      />
-      <div className="actions">
-        <button
-          className="secondary"
-          onClick={() => {
-            track("VISUALIZATION_CONTROL", {
-              action: playing ? "pause" : "play",
-            });
-            setPlaying(!playing);
+      {focusedById[topic] && (
+        <p className="caption">
+          관련 기본 알고리즘의 공통 예제 · 세부 원리의 실제 사례는 왼쪽 설명에서
+          확인하세요.
+        </p>
+      )}
+      <div className="example-tab-layout">
+        <div
+          className="example-side-tabs"
+          role="tablist"
+          aria-label="예제 보기 방식"
+          aria-orientation="vertical"
+          onKeyDown={(e) => {
+            if (["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+              e.preventDefault();
+              const next =
+                e.key === "Home"
+                  ? "animation"
+                  : e.key === "End"
+                    ? "manual"
+                    : modeTab === "animation"
+                      ? "manual"
+                      : "animation";
+              setModeTab(next);
+              document.getElementById(`example-tab-${next}`)?.focus();
+            }
           }}
         >
-          {playing ? "자동 재생 끄기" : "GIF 재생"}
-        </button>
-        <button
-          className="secondary"
-          onClick={() => {
-            setVersion((v) => v + 1);
-            setPlaying(true);
-          }}
+          {[
+            ["animation", "자동 동작"],
+            ["manual", "단계별 예제"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              id={`example-tab-${id}`}
+              role="tab"
+              aria-selected={modeTab === id}
+              aria-controls="example-content"
+              tabIndex={modeTab === id ? 0 : -1}
+              className={modeTab === id ? "active" : "secondary"}
+              onClick={() => selectMode(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div
+          id="example-content"
+          role="tabpanel"
+          aria-labelledby={`example-tab-${modeTab}`}
         >
-          처음부터 보기
-        </button>
+          {modeTab === "manual" ? (
+            <LessonDiagram topic={topic} />
+          ) : (
+            <>
+              <div className="animation-legend">
+                <span>● 현재 비교·변경 중</span>
+                <span>○ 나머지 값</span>
+              </div>
+              <img
+                key={`${topic}-${mode}-${version}-${playing}`}
+                src={`/learning/${practiceTopic(topic)}-${mode}.${playing ? "gif" : "png"}`}
+                alt={`${title} 예시 동작${playing ? " 애니메이션" : " 첫 장면"}`}
+                width="960"
+                height="600"
+              />
+              <div className="actions">
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    track("VISUALIZATION_CONTROL", {
+                      action: playing ? "pause" : "play",
+                    });
+                    setPlaying(!playing);
+                  }}
+                >
+                  {playing ? "자동 재생 끄기" : "GIF 재생"}
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setVersion((v) => v + 1);
+                    setPlaying(true);
+                  }}
+                >
+                  처음부터 보기
+                </button>
+              </div>
+              <p className="caption">
+                자동 재생을 끄면 첫 장면을 표시해요. 세로 탭의 단계별 예제에서
+                각 상태를 자세히 확인할 수 있어요.
+              </p>
+            </>
+          )}
+        </div>
       </div>
-      <p className="caption">
-        자동 재생을 끄면 첫 장면을 표시해요. 아래 단계별 예제에서 각 상태를
-        자세히 확인할 수 있어요.
-      </p>
     </section>
   );
 }
@@ -235,7 +307,7 @@ export function Prediction({
     answerEdges = vars.graph.flatMap((row: number[], i: number) =>
       row.filter((j) => i < j).map((j) => ({ from: String(i), to: String(j) })),
     );
-  } else if (topic.id === "tree" && q.choices) {
+  } else if (practiceTopic(topic.id) === "tree" && q.choices) {
     answerNodes = q.choices.map((c, i) => {
       const depth = Math.floor(Math.log2(i + 1));
       return {
@@ -247,12 +319,10 @@ export function Prediction({
         state: state.answer === String(i) ? "active" : "",
       };
     });
-    answerEdges = answerNodes
-      .slice(1)
-      .map((n) => ({
-        from: String(Math.floor((Number(n.id) - 1) / 2)),
-        to: n.id,
-      }));
+    answerEdges = answerNodes.slice(1).map((n) => ({
+      from: String(Math.floor((Number(n.id) - 1) / 2)),
+      to: n.id,
+    }));
   }
   const correct =
     state.result === "correct" && matchesAnswer(state.answer, q.answer);
@@ -268,12 +338,12 @@ export function Prediction({
             현재 상태 · {step} / {questions.length}
           </h2>
           <p>{q.current.note}</p>
-          <StateDiagram frame={q.current} topic={topic.id} />
+          <StateDiagram frame={q.current} topic={practiceTopic(topic.id)} />
           <p className="caption">다음 단계에서 바뀔 {label}을 예측해 보세요.</p>
         </section>
         <section className="panel">
           <h2>내가 만드는 다음 상태</h2>
-          <p>{label}은 어떻게 될까요?</p>
+          <p>다음 단계의 {label}: 어떤 값이 될까요?</p>
           {q.field === "active" && (
             <p className="caption">
               {q.current.advanced?.nodes
@@ -363,7 +433,7 @@ export function Prediction({
           {correct && (
             <details>
               <summary>다음 상태 확인</summary>
-              <StateDiagram frame={q.next} topic={topic.id} />
+              <StateDiagram frame={q.next} topic={practiceTopic(topic.id)} />
             </details>
           )}
         </section>

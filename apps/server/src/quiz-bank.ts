@@ -1,3 +1,4 @@
+import { practiceTopic } from "./focused-concepts.js";
 // Authored, versioned questions. Answers stay on the server until submission.
 type Entry = [string, string, string, string, string];
 const bank: Record<string, Entry[]> = {
@@ -757,7 +758,7 @@ const bank: Record<string, Entry[]> = {
 export function topicQuizzes(topic: { id: string; quiz: any }) {
   return [
     { ...topic.quiz, id: "core" },
-    ...(bank[topic.id] ?? []).map(
+    ...(bank[practiceTopic(topic.id)] ?? []).map(
       ([question, correct, b, c, explanation], i) => {
         const choices = [correct, b, c],
           offset = (i + topic.id.length) % 3;

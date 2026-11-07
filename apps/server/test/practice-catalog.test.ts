@@ -1,20 +1,21 @@
+import { practiceTopic } from "../src/focused-concepts.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { database } from "../src/db.js";
 import { seed } from "../src/content.js";
 import { catalog } from "../src/content-admin.js";
-test("all 47 concepts have complete coding problems and reseeding preserves published content", async () => {
+test("all 200 concepts link to complete coding problems and reseeding preserves published content", async () => {
   const db = await database();
   try {
     await seed(db);
     const topics = (await db.query("SELECT * FROM topics")).rows;
     const problems = (await db.query("SELECT * FROM problems")).rows;
-    assert.equal(topics.length, 47);
+    assert.equal(topics.length, 200);
     assert.equal(problems.length, 47);
     catalog.parse({ topics, problems });
     assert.deepEqual(
       new Set(problems.map((p) => p.topic_id)),
-      new Set(topics.map((t) => t.id)),
+      new Set(topics.map((t) => practiceTopic(t.id))),
     );
     for (const p of problems) {
       assert.deepEqual(Object.keys(p.references_code).sort(), [

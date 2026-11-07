@@ -389,7 +389,19 @@ export function DiagramCanvas({
               <text
                 textAnchor="middle"
                 y={n.detail ? -3 : 5}
-                style={onSelect ? { fontSize: 14 / zoom } : undefined}
+                style={{
+                  fontSize: Math.min(
+                    onSelect ? 14 / zoom : 16,
+                    ((n.shape === "card" ? (n.width ?? 100) : 48) - 12) /
+                      Math.max(
+                        1,
+                        Array.from(n.label).reduce(
+                          (sum, c) => sum + (c.charCodeAt(0) > 255 ? 1 : 0.62),
+                          0,
+                        ),
+                      ),
+                  ),
+                }}
               >
                 {n.label.length > 22 ? n.label.slice(0, 21) + "…" : n.label}
               </text>

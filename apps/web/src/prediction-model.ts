@@ -1,3 +1,4 @@
+import { practiceTopic } from "../../server/src/focused-concepts.js";
 import { lessonFrames, type LessonFrame } from "./lesson-model.js";
 import { lessonExamples } from "./lesson-examples.js";
 import {
@@ -12,6 +13,7 @@ export type LearningFrame = {
   advanced?: AdvancedFrame;
 };
 export function learningFrames(topic: string): LearningFrame[] {
+  topic = practiceTopic(topic);
   if ((advancedTopics as readonly string[]).includes(topic))
     return advancedLesson(topic, 0).frames.map((advanced) => ({
       note: advanced.note,
@@ -111,7 +113,10 @@ export function checkpoints(topic: string) {
       changed[0];
     if (!field) continue;
     // Start binary search at its first comparison; sorted-input setup is not a prediction.
-    if (topic === "binary-search" && current.core?.vars.mid === undefined)
+    if (
+      practiceTopic(topic) === "binary-search" &&
+      current.core?.vars.mid === undefined
+    )
       continue;
     const answer = after[field];
     let choices: { label: string; value: number }[] | undefined;

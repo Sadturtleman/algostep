@@ -1,3 +1,4 @@
+import { seedFocusedConcepts } from "./seed-focused-concepts.js";
 import type { DB } from "./db.js";
 import { seedCurriculum } from "./curriculum.js";
 import { seedPractice } from "./practice.js";
@@ -268,5 +269,6 @@ export async function seed(db: DB) {
     }
     await seedPractice(tx);
     await seedExtendedPractice(tx);
+    await seedFocusedConcepts(tx);
   });
 }
