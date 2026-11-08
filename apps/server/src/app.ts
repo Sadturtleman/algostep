@@ -1,6 +1,7 @@
 import { fleetConfig } from "./worker-fleet.js";
 import { topicQuizzes } from "./quiz-bank.js";
 import Fastify from "fastify";
+import { registerApiDocs } from "./api-docs.js";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -1035,5 +1036,6 @@ export async function createApp(c: Config) {
       return { accepted: true };
     });
   });
+  await registerApiDocs(app);
   return app;
 }

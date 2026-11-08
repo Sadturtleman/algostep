@@ -1,0 +1,2539 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Algostep MVP API",
+    "version": "0.2.0",
+    "description": "FE 연동용 실제 구현 명세.\n\n호출 순서: Google 로그인 → /me → /topics·/problems → 기록 생성 → PATCH 저장 → 실행 요청 → 실행 조회.\n\n브라우저 요청에는 credentials: include를 사용합니다. 변경 요청은 허용된 Origin과 x-csrf-token이 필요합니다. Swagger는 같은 서비스에서 로그인한 뒤 사용하세요. Try it out은 실제 데이터를 변경할 수 있습니다.\n\n범위: 웹 MVP. 내부 워커·운영 API는 별도 서버 간 계약이며 이 문서에서 제외합니다. 관리자·결제·리뷰·PDF·Android는 MVP 비활성입니다."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "현재 서버 (동일 출처)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "공통"
+    },
+    {
+      "name": "인증"
+    },
+    {
+      "name": "학습"
+    },
+    {
+      "name": "기록"
+    },
+    {
+      "name": "실행"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "health",
+        "tags": [
+          "공통"
+        ],
+        "summary": "서버 상태",
+        "description": "인증 불필요. DB 상태 점검과는 별개입니다.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "operationId": "config",
+        "tags": [
+          "공통"
+        ],
+        "summary": "기능·언어·실행 제한",
+        "description": "인증 불필요. UI는 features와 limits를 기준으로 구성합니다. predictionSync=false: 단계별 예측 진행은 클라이언트 상태입니다.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Config"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/google": {
+      "post": {
+        "operationId": "googleLogin",
+        "tags": [
+          "인증"
+        ],
+        "summary": "Google 로그인",
+        "description": "Google Identity Services에서 받은 ID 토큰 전달. 성공 시 HttpOnly session 쿠키(7일) 설정. Origin은 서버 WEB_ORIGIN과 일치해야 합니다. 로그인 user.display_name과 /me의 user.name 차이에 주의하세요.",
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "credential": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 8192
+                  },
+                  "client": {
+                    "type": "string",
+                    "enum": [
+                      "web"
+                    ],
+                    "default": "web"
+                  }
+                },
+                "required": [
+                  "credential"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Login"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUTH_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "me",
+        "tags": [
+          "인증"
+        ],
+        "summary": "현재 사용자와 CSRF 토큰",
+        "description": "로그인된 브라우저 쿠키로 조회. 반환된 csrf를 변경 요청의 x-csrf-token에 전달합니다.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "tags": [
+          "인증"
+        ],
+        "summary": "로그아웃",
+        "description": "서버 세션 삭제 및 session 쿠키 제거.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/topics": {
+      "get": {
+        "operationId": "topics",
+        "tags": [
+          "학습"
+        ],
+        "summary": "MVP 학습 개념 목록",
+        "description": "8개 개념과 선택형 퀴즈. 응답 퀴즈에는 정답과 해설이 없습니다. 애니메이션과 단계별 예측은 FE 구현입니다.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "topics": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Topic"
+                      }
+                    }
+                  },
+                  "required": [
+                    "topics"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quiz/{topic}": {
+      "post": {
+        "operationId": "answerQuiz",
+        "tags": [
+          "학습"
+        ],
+        "summary": "선택형 퀴즈 채점",
+        "description": "answer는 0부터 시작하는 선택지 인덱스. requestKey는 사용자별 멱등키로, 같은 키를 재사용하면 기존 결과가 반환됩니다. 다른 문항·답변에는 새 키를 사용하세요.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "topic",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "requestKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 100,
+                    "example": "attempt-00000001"
+                  },
+                  "questionId": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "default": "core"
+                  }
+                },
+                "required": [
+                  "answer",
+                  "requestKey"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correct": {
+                      "type": "boolean"
+                    },
+                    "answer": {
+                      "type": "integer"
+                    },
+                    "explanation": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "correct",
+                    "answer",
+                    "explanation"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/problems": {
+      "get": {
+        "operationId": "problems",
+        "tags": [
+          "학습"
+        ],
+        "summary": "문제·공개 테스트·권장 코드",
+        "description": "MVP 주제에 속한 문제만 반환. 테스트는 모두 공개이며 출력은 공백·줄바꿈까지 엄격하게 비교합니다.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Problem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "problems"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/records": {
+      "get": {
+        "operationId": "records",
+        "tags": [
+          "기록"
+        ],
+        "summary": "내 기록 목록",
+        "description": "만료되지 않은 본인 기록. updated_at 내림차순. 페이지네이션 없음(최대 100건).",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RecordListItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "records"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createRecord",
+        "tags": [
+          "기록"
+        ],
+        "summary": "문제 풀이 기록 생성",
+        "description": "언어별 starter 코드로 생성. 최대 100건이며 초과 시 생성 시각 기준 가장 오래된 기록 영구 삭제. 보관 기간은 생성 시점부터 30일입니다.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "problemId": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "python",
+                      "cpp",
+                      "java"
+                    ]
+                  }
+                },
+                "required": [
+                  "problemId",
+                  "language"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Record"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/records/{id}": {
+      "get": {
+        "operationId": "record",
+        "tags": [
+          "기록"
+        ],
+        "summary": "기록과 최신 실행 조회",
+        "description": "본인 소유의 만료되지 않은 기록만 조회. 다른 사용자 기록도 404 응답.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "saveRecord",
+        "tags": [
+          "기록"
+        ],
+        "summary": "코드 자동 저장",
+        "description": "현재 revision을 제출하고 응답의 증가된 revision을 보관합니다. 충돌 시 409 SAVE_CONFLICT. 저장은 30일 만료 시각을 연장하지 않습니다.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "python",
+                      "cpp",
+                      "java"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "UTF-8 기준 최대 65,536바이트. 단일 파일 전체 프로그램."
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "language",
+                  "source",
+                  "revision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Record"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRecord",
+        "tags": [
+          "기록"
+        ],
+        "summary": "기록 영구 삭제",
+        "description": "확인 UI를 거친 뒤 호출하세요. 연결된 실행도 삭제되며 복구할 수 없습니다.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/records/{id}/executions": {
+      "post": {
+        "operationId": "execute",
+        "tags": [
+          "실행"
+        ],
+        "summary": "채점 또는 사용자 입력 실행 요청",
+        "description": "저장 완료 후 최신 revision으로 호출. mode=judge는 공개 테스트, custom은 input 사용. requestKey는 기록별 멱등키입니다. 재실행은 새 기록을 만들지 않고 latest_execution_id를 갱신합니다. 반환된 id로 실행 결과를 폴링하세요.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "requestKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 100,
+                    "example": "attempt-00000001"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "judge",
+                      "custom"
+                    ],
+                    "default": "judge"
+                  },
+                  "input": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "custom 실행 stdin. UTF-8 65,536바이트 이하. 생략하면 빈 문자열."
+                  }
+                },
+                "required": [
+                  "requestKey",
+                  "revision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Execution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SAVE_CONFLICT: 최신 기록을 다시 조회하고 사용자 코드와 병합",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/executions/{id}": {
+      "get": {
+        "operationId": "execution",
+        "tags": [
+          "실행"
+        ],
+        "summary": "실행 상태·채점·추적·복잡도 조회",
+        "description": "QUEUED → RUNNING → SUCCEEDED/FAILED. SUCCEEDED에서도 verdict=WA 등일 수 있습니다. 최종 상태에서 폴링 중단. 테스트별 10초/512MiB, 컴파일 30초, 제출 전체 120초. 분석은 LLM 없이 검증된 코드만 SUPPORTED이며 그 외 복잡도는 null입니다.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공 (생성·실행 요청도 200)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Execution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_INPUT / INVALID_PATH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED / SESSION_EXPIRED / GOOGLE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_INVALID / CSRF_INVALID / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMIT: 일반 API IP당 분당 240회, Google 로그인 분당 20회",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SYSTEM_ERROR: 재요청 전에 저장·실행 상태 확인",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "Quiz": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "question",
+          "options"
+        ]
+      },
+      "Topic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "description": "레거시 필드. UI에서 P0/P1/P2 분류로 노출하지 않음."
+          },
+          "body": {
+            "type": "string"
+          },
+          "complexity": {
+            "type": "string",
+            "description": "시간|공간 형식"
+          },
+          "exampleTopicId": {
+            "type": "string"
+          },
+          "quiz": {
+            "$ref": "#/components/schemas/Quiz"
+          },
+          "quizzes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Quiz"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "priority",
+          "body",
+          "complexity",
+          "exampleTopicId",
+          "quiz",
+          "quizzes"
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "input_spec": {
+            "type": "string"
+          },
+          "output_spec": {
+            "type": "string"
+          },
+          "constraints_text": {
+            "type": "string"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "string"
+                },
+                "expected": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "input",
+                "expected"
+              ]
+            }
+          },
+          "starters": {
+            "type": "object",
+            "properties": {
+              "python": {
+                "type": "string"
+              },
+              "cpp": {
+                "type": "string"
+              },
+              "java": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "python",
+              "cpp",
+              "java"
+            ]
+          },
+          "references_code": {
+            "type": "object",
+            "properties": {
+              "python": {
+                "type": "string"
+              },
+              "cpp": {
+                "type": "string"
+              },
+              "java": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "python",
+              "cpp",
+              "java"
+            ]
+          },
+          "complexity_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "complexity_space": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "title",
+          "statement",
+          "tests",
+          "starters",
+          "references_code"
+        ]
+      },
+      "Record": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "problem_id": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "python",
+              "cpp",
+              "java"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "UTF-8 기준 최대 65,536바이트. 단일 파일 전체 프로그램."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest_execution_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "problem_id",
+          "language",
+          "source",
+          "revision",
+          "latest_execution_id",
+          "created_at",
+          "updated_at",
+          "expires_at"
+        ]
+      },
+      "RecordListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Record"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "execution_status": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "title",
+              "execution_status"
+            ]
+          }
+        ]
+      },
+      "RecordDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Record"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reviews": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                },
+                "maxItems": 0,
+                "description": "MVP는 항상 빈 배열"
+              },
+              "execution": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Execution"
+                  },
+                  {
+                    "type": "object",
+                    "nullable": true,
+                    "enum": [
+                      null
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "reviews",
+              "execution"
+            ]
+          }
+        ]
+      },
+      "TraceStep": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "integer"
+          },
+          "event": {
+            "type": "string"
+          },
+          "locals": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "stack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "line",
+          "event",
+          "locals",
+          "stack"
+        ]
+      },
+      "TestResult": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string",
+            "nullable": true
+          },
+          "actual": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "elapsedMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "peakMemoryBytes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "trace": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TraceStep"
+            }
+          },
+          "traceTruncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "input",
+          "expected",
+          "actual",
+          "stderr",
+          "verdict",
+          "elapsedMs",
+          "peakMemoryBytes"
+        ]
+      },
+      "Analysis": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUPPORTED",
+              "UNSUPPORTED"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "CURATED_REFERENCE_MATCH",
+              "LEXICAL_REFERENCE_MATCH"
+            ]
+          },
+          "time": {
+            "type": "string",
+            "nullable": true
+          },
+          "space": {
+            "type": "string",
+            "nullable": true
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "python",
+              "cpp",
+              "java"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "status",
+          "time",
+          "space",
+          "evidence",
+          "language",
+          "findings"
+        ]
+      },
+      "ExecutionResult": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WA",
+              "CE",
+              "RE",
+              "TLE",
+              "MLE",
+              "OUTPUT_LIMIT",
+              "COMPLETED"
+            ]
+          },
+          "diagnostics": {
+            "type": "string"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TestResult"
+            }
+          },
+          "traceSupport": {
+            "type": "string",
+            "enum": [
+              "PYTHON",
+              "GDB",
+              "JDI",
+              "UNSUPPORTED"
+            ]
+          },
+          "runnerImage": {
+            "type": "string"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/Analysis"
+          }
+        },
+        "required": [
+          "verdict",
+          "tests",
+          "traceSupport",
+          "runnerImage",
+          "analysis"
+        ]
+      },
+      "Execution": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "record_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "request_key": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "judge",
+              "custom"
+            ]
+          },
+          "custom_input": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED"
+            ]
+          },
+          "result": {
+            "nullable": true,
+            "type": "object",
+            "description": "대기 중 null. 완료 시 ExecutionResult, 시스템 실패 시 systemError. SUCCEEDED는 정답이 아닌 실행 처리 완료를 뜻함.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionResult"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "systemError": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "systemError"
+                ]
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lease_token": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "lease_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "record_id",
+          "snapshot_id",
+          "request_key",
+          "mode",
+          "custom_input",
+          "status",
+          "result",
+          "attempt",
+          "created_at",
+          "finished_at",
+          "lease_token",
+          "lease_expires_at"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "analyticsId": {
+                "type": "string",
+                "format": "uuid",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "email",
+              "isAdmin",
+              "analyticsId"
+            ]
+          },
+          "csrf": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "csrf"
+        ]
+      },
+      "Login": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "google_subject": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "display_name": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "analyticsId": {
+                "type": "string",
+                "format": "uuid",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "display_name",
+              "isAdmin"
+            ]
+          },
+          "csrf": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "csrf"
+        ]
+      },
+      "Config": {
+        "type": "object",
+        "properties": {
+          "productMode": {
+            "type": "string",
+            "enum": [
+              "mvp",
+              "full"
+            ]
+          },
+          "googleClientId": {
+            "type": "string"
+          },
+          "topicIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "admin": {
+                "type": "boolean"
+              },
+              "analytics": {
+                "type": "boolean"
+              },
+              "reviews": {
+                "type": "boolean"
+              },
+              "payments": {
+                "type": "boolean"
+              },
+              "pdf": {
+                "type": "boolean"
+              },
+              "drive": {
+                "type": "boolean"
+              },
+              "android": {
+                "type": "boolean"
+              },
+              "support": {
+                "type": "boolean"
+              },
+              "predictionSync": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "admin",
+              "analytics",
+              "reviews",
+              "payments",
+              "pdf",
+              "drive",
+              "android",
+              "support",
+              "predictionSync"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "testMs": {
+                "type": "integer"
+              },
+              "memoryBytes": {
+                "type": "integer"
+              },
+              "compileMs": {
+                "type": "integer"
+              },
+              "outputBytes": {
+                "type": "integer"
+              },
+              "traceSteps": {
+                "type": "integer"
+              },
+              "submissionMs": {
+                "type": "integer"
+              },
+              "sourceBytes": {
+                "type": "integer"
+              },
+              "inputBytes": {
+                "type": "integer"
+              },
+              "recordCount": {
+                "type": "integer"
+              },
+              "retentionDays": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "testMs",
+              "memoryBytes",
+              "compileMs",
+              "outputBytes",
+              "traceSteps",
+              "submissionMs",
+              "sourceBytes",
+              "inputBytes",
+              "recordCount",
+              "retentionDays"
+            ]
+          },
+          "ga4MeasurementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reviewEnabled": {
+            "type": "boolean"
+          },
+          "paymentEnabled": {
+            "type": "boolean"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "productMode",
+          "googleClientId",
+          "topicIds",
+          "features",
+          "limits",
+          "ga4MeasurementId",
+          "reviewEnabled",
+          "paymentEnabled",
+          "languages"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session",
+        "description": "웹에서 Google 로그인하면 자동 설정되는 HttpOnly 쿠키. 직접 입력하지 마세요."
+      },
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-csrf-token",
+        "description": "/api/me 응답의 csrf. Swagger UI는 변경 요청 직전에 자동 조회합니다."
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@
     "apps/runner"
   ],
   "scripts": {
+    "docs:export": "tsx scripts/export-openapi.ts",
     "dev": "concurrently -k \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
     "build": "npm run build -w apps/server && npm run build -w apps/web && npm run build -w apps/runner",
     "typecheck": "tsc --noEmit",
@@ -18,6 +19,7 @@
     "format": "prettier --write apps tests playwright.config.ts package.json tsconfig.json"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
