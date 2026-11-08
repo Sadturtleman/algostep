@@ -52,6 +52,7 @@ before(async () => {
   db = await database(process.env.TEST_DATABASE_URL);
   await seed(db);
   app = await createApp({
+    productMode: "full",
     db,
     origin,
     googleClientId: "test",

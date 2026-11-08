@@ -232,13 +232,20 @@ function App() {
   }, [workspaceKey, user?.id, loading, mobile, routeRetry]);
 
   useEffect(() => {
-    setAnalyticsUser(user?.id ?? null);
+    setAnalyticsUser(
+      config?.features?.analytics === false ? null : (user?.id ?? null),
+    );
     if (user?.analyticsId)
       void initializeGoogleTag(
         config?.ga4MeasurementId ?? null,
         user.analyticsId,
       );
-  }, [user?.id, user?.analyticsId, config?.ga4MeasurementId]);
+  }, [
+    user?.id,
+    user?.analyticsId,
+    config?.ga4MeasurementId,
+    config?.features?.analytics,
+  ]);
   useEffect(() => {
     if (!user || page === "not-found") return;
     const screen =
@@ -275,7 +282,7 @@ function App() {
   }, [user?.id, error]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || config?.features?.analytics === false) return;
     let trackedDay = "";
     let inFlight = false;
     const track = () => {
@@ -303,7 +310,7 @@ function App() {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", track);
     };
-  }, [user?.id]);
+  }, [user?.id, config?.features?.analytics]);
   const fail = (e: any) =>
     setError(
       e instanceof ApiError
@@ -320,6 +327,7 @@ function App() {
     return () => removeEventListener("resize", resize);
   }, []);
   const loadData = async () => {
+    const runtimeConfig = config ?? (await api("/config"));
     if (nativeAndroid) {
       const a = await api("/topics");
       setTopics(a.topics);
@@ -329,7 +337,9 @@ function App() {
       api("/topics"),
       api("/problems"),
       api("/records"),
-      api("/review-usage"),
+      runtimeConfig.productMode === "mvp"
+        ? Promise.resolve(null)
+        : api("/review-usage"),
     ]);
     setTopics(a.topics);
     setProblems(b.problems);
@@ -699,20 +709,24 @@ function App() {
               </button>
             </>
           )}
-          <button
-            className={page === "support" ? "nav active" : "nav"}
-            onClick={() => void navigate("support")}
-          >
-            문의하기
-          </button>
-          <button
-            className={
-              page === "plans" || page === "checkout" ? "nav active" : "nav"
-            }
-            onClick={() => transition("/plans")}
-          >
-            구독 안내
-          </button>
+          {config?.productMode !== "mvp" && (
+            <>
+              <button
+                className={page === "support" ? "nav active" : "nav"}
+                onClick={() => void navigate("support")}
+              >
+                문의하기
+              </button>
+              <button
+                className={
+                  page === "plans" || page === "checkout" ? "nav active" : "nav"
+                }
+                onClick={() => transition("/plans")}
+              >
+                구독 안내
+              </button>
+            </>
+          )}
           {user.isAdmin && !nativeAndroid && (
             <button
               className={page === "admin" ? "nav active" : "nav"}
@@ -946,9 +960,13 @@ function App() {
       </>
     );
   const actualPage =
-    mobile && ["workspace", "problems", "history", "challenges"].includes(page)
-      ? "mobile-restricted"
-      : page;
+    config?.productMode === "mvp" &&
+    ["admin", "support", "plans", "checkout"].includes(page)
+      ? "not-found"
+      : mobile &&
+          ["workspace", "problems", "history", "challenges"].includes(page)
+        ? "mobile-restricted"
+        : page;
   const groups = groupLearningTopics(topics, filter);
   const relatedProblems = topic
     ? problems.filter(
@@ -1350,22 +1368,24 @@ function App() {
                 </span>
                 <h1>{problem.title}</h1>
               </div>
-              <div className="actions">
-                <button
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => void exportPdf()}
-                >
-                  <FileDown size={17} /> PDF
-                </button>
-                <button
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => void exportPdf(true)}
-                >
-                  Drive에 저장
-                </button>
-              </div>
+              {config?.productMode !== "mvp" && (
+                <div className="actions">
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void exportPdf()}
+                  >
+                    <FileDown size={17} /> PDF
+                  </button>
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void exportPdf(true)}
+                  >
+                    Drive에 저장
+                  </button>
+                </div>
+              )}
             </div>
             <div className="problem-description workspace-description">
               <h3>문제</h3>
@@ -1584,24 +1604,32 @@ function App() {
             </div>
             <section
               className="panel workspace-outcomes"
-              aria-label="테스트 결과와 코드 리뷰"
+              aria-label={
+                config?.productMode === "mvp"
+                  ? "테스트 결과"
+                  : "테스트 결과와 코드 리뷰"
+              }
             >
               <div className="language-tabs">
                 {[
                   ["tests", "테스트 결과"],
                   ["review", "코드 리뷰"],
-                ].map(([k, v]) => (
-                  <button
-                    key={k}
-                    className={`tab ${(tab === "visual" ? "tests" : tab) === k ? "active" : ""}`}
-                    onClick={() => {
-                      setTab(k);
-                      track("RESULT_TAB_VIEWED", { tab: k });
-                    }}
-                  >
-                    {v}
-                  </button>
-                ))}
+                ]
+                  .filter(
+                    ([k]) => k !== "review" || config?.productMode !== "mvp",
+                  )
+                  .map(([k, v]) => (
+                    <button
+                      key={k}
+                      className={`tab ${(tab === "visual" ? "tests" : tab) === k ? "active" : ""}`}
+                      onClick={() => {
+                        setTab(k);
+                        track("RESULT_TAB_VIEWED", { tab: k });
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
               </div>
               {tab !== "review" &&
                 (selectedTest ? (
@@ -1646,7 +1674,7 @@ function App() {
                     코드를 실행하면 테스트 결과가 여기에 표시돼요.
                   </p>
                 ))}
-              {tab === "review" && (
+              {tab === "review" && config?.productMode !== "mvp" && (
                 <>
                   <div className="section-heading">
                     <h3>코드 리뷰</h3>

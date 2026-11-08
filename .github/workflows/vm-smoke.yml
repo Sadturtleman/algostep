@@ -2,6 +2,10 @@ name: Isolated VM smoke
 on:
   workflow_dispatch:
     inputs:
+      mvp_only:
+        description: Verify the eight MVP topics in all three languages
+        type: boolean
+        default: true
       boundary_only:
         description: Run only grading, resource and network boundary cases
         type: boolean
@@ -41,6 +45,7 @@ jobs:
           sudo chmod 0444 apps/runner/images/rootfs.ext4
       - name: Execute reference programs in disposable VMs
         env:
+          MVP_ONLY: ${{ inputs.mvp_only && '1' || '0' }}
           BOUNDARY_ONLY: ${{ inputs.boundary_only && '1' || '0' }}
         run: |
-          sudo env PATH="$PATH" BOUNDARY_ONLY="$BOUNDARY_ONLY" KERNEL_PATH="$PWD/apps/runner/images/vmlinux" ROOTFS_PATH="$PWD/apps/runner/images/rootfs.ext4" RUNNER_WORKDIR=/tmp/algostep-vms node --import tsx scripts/vm-smoke.ts
+          sudo env PATH="$PATH" MVP_ONLY="$MVP_ONLY" BOUNDARY_ONLY="$BOUNDARY_ONLY" KERNEL_PATH="$PWD/apps/runner/images/vmlinux" ROOTFS_PATH="$PWD/apps/runner/images/rootfs.ext4" RUNNER_WORKDIR=/tmp/algostep-vms node --import tsx scripts/vm-smoke.ts

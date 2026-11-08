@@ -105,6 +105,7 @@ test("Android nonce is single use and Android session cannot execute or read rec
   await seed(db);
   const origin = "https://learn.example";
   const app = await createApp({
+    productMode: "full",
     db,
     origin,
     googleClientId: "test",

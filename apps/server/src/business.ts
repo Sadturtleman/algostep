@@ -16,6 +16,7 @@ export async function businessEvent(
   key: string,
   metadata: Record<string, string | number | boolean> = {},
 ) {
+  if (db.businessEventsEnabled === false) return;
   await db.query(
     `WITH inserted AS (
       INSERT INTO business_events(id,event_key,type,actor_id,entity_id,metadata,analytics_context)
@@ -36,6 +37,7 @@ export async function businessEvent(
 }
 
 export async function visit(db: DB, user: string) {
+  if (db.businessEventsEnabled === false) return;
   await db.query(
     `WITH v AS (
     INSERT INTO visitor_days(user_id,day) VALUES($1,(now() AT TIME ZONE 'Asia/Seoul')::date) ON CONFLICT DO NOTHING RETURNING day

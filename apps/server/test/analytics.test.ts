@@ -25,6 +25,7 @@ before(async () => {
   db = await database();
   await seed(db);
   app = await createApp({
+    productMode: "full",
     db,
     origin,
     googleClientId: "test",

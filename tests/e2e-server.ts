@@ -6,6 +6,7 @@ if (process.env.NODE_ENV !== "test")
 const db = await database();
 await seed(db);
 const app = await createApp({
+  productMode: process.env.E2E_PRODUCT_MODE === "mvp" ? "mvp" : "full",
   db,
   origin: "http://127.0.0.1:5173",
   googleClientId: "",
