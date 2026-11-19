@@ -97,4 +97,9 @@ for item in data:
   name=f'{item["topic"]}-{mode}'
   images[0].save(out/(name+'.png'))
   images[0].save(out/(name+'.gif'),save_all=True,append_images=images[1:],duration=1500,loop=0,optimize=True)
+  if item['topic']=='tree':
+   strip=Image.new('RGB',(960,600*len(images)))
+   for index,frame_image in enumerate(images):
+    strip.paste(frame_image,(0,600*index))
+   strip.save(out/(name+'-frames.png'),optimize=True)
 print(f'Rendered {len(data)} topics in both themes')

@@ -749,7 +749,8 @@ function App() {
         >
           {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
           <span className="theme-label">
-            테마 · {theme === "dark" ? "다크" : "라이트"}
+            <span aria-hidden={theme === "dark"}>테마 · 라이트</span>
+            <span aria-hidden={theme !== "dark"}>테마 · 다크</span>
           </span>
         </button>
         {user && (
@@ -934,11 +935,13 @@ function App() {
               <br />
               이해는 넓히고.
             </h2>
-            <div className="array">
+            <div className="array login-array">
               {[2, 5, 8, 13, 21, 34].map((n, i) => (
-                <div className={`cell ${n === 21 ? "active" : ""}`} key={n}>
-                  <small>{i}</small>
-                  <strong>{n}</strong>
+                <div className="login-array-item" key={n}>
+                  <small>[{i}]</small>
+                  <div className={`cell ${n === 21 ? "active" : ""}`}>
+                    <strong>{n}</strong>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1195,7 +1198,17 @@ function App() {
             </button>
             <div className="page-heading">
               <span className="badge">{learningCategory(topic)}</span>
-              <h1>{topic.title}</h1>
+              <div className="lesson-heading-row">
+                <h1>{topic.title}</h1>
+                <button
+                  onClick={() => {
+                    setPage("practice");
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  다음 상태 예측하기 <ArrowRight size={18} />
+                </button>
+              </div>
               <p>
                 {mobile
                   ? "기본 개념과 예제 동작을 함께 살펴보고, 다음 상태를 예측해 이해를 확인하세요."
@@ -1285,20 +1298,6 @@ function App() {
                 />
               </div>
             </div>
-            <div className="lesson-next-screen">
-              <p>
-                개념과 예제를 충분히 살펴봤다면 다음 화면에서 이해를 확인해
-                보세요.
-              </p>
-              <button
-                onClick={() => {
-                  setPage("practice");
-                  window.scrollTo(0, 0);
-                }}
-              >
-                다음 상태 예측하기 <ArrowRight size={18} />
-              </button>
-            </div>
           </>
         )}
         {actualPage === "practice" && topic && (
@@ -1387,21 +1386,52 @@ function App() {
                 </div>
               )}
             </div>
-            <div className="problem-description workspace-description">
-              <h3>문제</h3>
+            <div className="workspace-description">
               <p>{problem.statement}</p>
-              <details>
-                <summary>입출력 조건과 공개 테스트</summary>
-                <p>{problem.input_spec}</p>
-                <p>{problem.output_spec}</p>
-                <small>{problem.constraints_text}</small>
-                {problem.tests.map((t: any, i: number) => (
-                  <div className="public-test" key={i}>
-                    <strong>테스트 {i + 1}</strong>
-                    <pre>{t.input}</pre>
-                    <code>예상 출력: {JSON.stringify(t.expected)}</code>
+              <details className="workspace-reference" key={problem.id}>
+                <summary>
+                  <span
+                    className="workspace-reference-marker"
+                    aria-hidden="true"
+                  />
+                  입출력 조건과 공개 테스트
+                </summary>
+                <div className="panel workspace-reference-card">
+                  <div className="workspace-io">
+                    <div>
+                      <h3>입력</h3>
+                      <p>{problem.input_spec}</p>
+                    </div>
+                    <div>
+                      <h3>출력</h3>
+                      <p>{problem.output_spec}</p>
+                    </div>
                   </div>
-                ))}
+                  <p className="workspace-constraints">
+                    <strong>제한 조건</strong> {problem.constraints_text}
+                  </p>
+                  <div className="workspace-public-tests">
+                    <h3>공개 테스트</h3>
+                    <div className="public-test-grid">
+                      {problem.tests.map(
+                        (
+                          test: { input: string; expected: string },
+                          index: number,
+                        ) => (
+                          <div className="public-test" key={index}>
+                            <h4>테스트 {index + 1}</h4>
+                            <span>입력</span>
+                            <pre>{test.input}</pre>
+                            <div className="public-test-output">
+                              <span>예상 출력</span>
+                              <code>{test.expected}</code>
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </div>
               </details>
             </div>
             <div className="workspace">

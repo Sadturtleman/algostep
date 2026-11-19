@@ -2,9 +2,10 @@ import {
   focusedById,
   practiceTopic,
 } from "../../server/src/focused-concepts.js";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   checkpoints,
+  learningFrames,
   matchesAnswer,
   type LearningFrame,
 } from "./prediction-model.js";
@@ -52,6 +53,57 @@ export function LearningSteps({
     </nav>
   );
 }
+const inorderLines = [
+  "def inorder(node):",
+  "    if node is None: return",
+  "    inorder(node.left)",
+  "    result.append(node.value)",
+  "    inorder(node.right)",
+];
+
+function InorderCode({ visiting }: { visiting: boolean }) {
+  const scrollArea = useRef<HTMLPreElement>(null);
+  const showCurrentLine = () => {
+    const area = scrollArea.current;
+    if (area) {
+      const line = area.querySelector<HTMLElement>("[aria-current]");
+      if (line && area.clientHeight > 0)
+        area.scrollTop = line.offsetTop - line.offsetHeight * 2;
+    }
+  };
+  useEffect(showCurrentLine, [visiting]);
+
+  return (
+    <details className="lesson-code" onToggle={showCurrentLine}>
+      <summary>
+        <span className="lesson-code-marker" aria-hidden="true" />이 동작을
+        코드로 보기
+      </summary>
+      <div className="lesson-code-panel">
+        <div className="lesson-code-heading">
+          <span>Python · 읽기 전용</span>
+          <span>현재 동작 관련 코드</span>
+        </div>
+        <pre ref={scrollArea} tabIndex={0} aria-label="중위 순회 Python 코드">
+          <code>
+            {inorderLines.map((line, index) => (
+              <span
+                className="lesson-code-line"
+                key={line}
+                aria-current={visiting && index === 3 ? "step" : undefined}
+              >
+                <span aria-hidden="true">{index + 1}</span>
+                {line}
+                {"\n"}
+              </span>
+            ))}
+          </code>
+        </pre>
+      </div>
+    </details>
+  );
+}
+
 export function ExampleAnimation({
   topic,
   title,
@@ -67,8 +119,25 @@ export function ExampleAnimation({
   const [version, setVersion] = useState(0);
   const mode = theme === "dark" ? "dark" : "light";
   const [modeTab, setModeTab] = useState("animation");
-  const selectMode = (mode: string) => {
+  const exampleTopic = practiceTopic(topic);
+  const treeFrames = useMemo(
+    () => (exampleTopic === "tree" ? learningFrames(exampleTopic) : null),
+    [exampleTopic],
+  );
+  const [frameIndex, setFrameIndex] = useState(0);
+  useEffect(() => {
+    if (!treeFrames || !playing || modeTab !== "animation") return;
+    const timer = window.setInterval(() => {
+      setFrameIndex((index) => (index + 1) % treeFrames.length);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [treeFrames, playing, modeTab, version]);
+  const selectTab = (mode: string) => {
+    setFrameIndex(0);
     setModeTab(mode);
+  };
+  const selectMode = (mode: string) => {
+    selectTab(mode);
     track("EXAMPLE_MODE_SELECTED", { topic, mode });
   };
   return (
@@ -98,7 +167,7 @@ export function ExampleAnimation({
                     : modeTab === "animation"
                       ? "manual"
                       : "animation";
-              setModeTab(next);
+              selectTab(next);
               document.getElementById(`example-tab-${next}`)?.focus();
             }
           }}
@@ -134,13 +203,27 @@ export function ExampleAnimation({
                 <span>● 현재 비교·변경 중</span>
                 <span>○ 나머지 값</span>
               </div>
-              <img
-                key={`${topic}-${mode}-${version}-${playing}`}
-                src={`/learning/${practiceTopic(topic)}-${mode}.${playing ? "gif" : "png"}`}
-                alt={`${title} 예시 동작${playing ? " 애니메이션" : " 첫 장면"}`}
-                width="960"
-                height="600"
-              />
+              {treeFrames ? (
+                <div className="lesson-animation-viewport">
+                  <img
+                    src={`/learning/tree-${mode}-frames.png`}
+                    alt={`${title} ${frameIndex + 1} / ${treeFrames.length} · ${treeFrames[frameIndex].note}`}
+                    width="960"
+                    height={600 * treeFrames.length}
+                    style={{
+                      transform: `translateY(-${(frameIndex * 100) / treeFrames.length}%)`,
+                    }}
+                  />
+                </div>
+              ) : (
+                <img
+                  key={`${topic}-${mode}-${version}-${playing}`}
+                  src={`/learning/${exampleTopic}-${mode}.${playing ? "gif" : "png"}`}
+                  alt={`${title} 예시 동작${playing ? " 애니메이션" : " 첫 장면"}`}
+                  width="960"
+                  height="600"
+                />
+              )}
               <div className="actions">
                 <button
                   className="secondary"
@@ -148,14 +231,20 @@ export function ExampleAnimation({
                     track("VISUALIZATION_CONTROL", {
                       action: playing ? "pause" : "play",
                     });
+                    setFrameIndex(0);
                     setPlaying(!playing);
                   }}
                 >
-                  {playing ? "자동 재생 끄기" : "GIF 재생"}
+                  {playing
+                    ? "자동 재생 끄기"
+                    : treeFrames
+                      ? "자동 재생 켜기"
+                      : "GIF 재생"}
                 </button>
                 <button
                   className="secondary"
                   onClick={() => {
+                    setFrameIndex(0);
                     setVersion((v) => v + 1);
                     setPlaying(true);
                   }}
@@ -167,8 +256,13 @@ export function ExampleAnimation({
                 자동 재생을 끄면 첫 장면을 표시해요. 세로 탭의 단계별 예제에서
                 각 상태를 자세히 확인할 수 있어요.
               </p>
+              {treeFrames && <InorderCode visiting={frameIndex > 0} />}
             </>
           )}
+          <p className="caption lesson-prediction-hint">
+            개념과 예제를 이해했다면 우측 상단의 ‘다음 상태 예측하기’로
+            이동하세요.
+          </p>
         </div>
       </div>
     </section>
@@ -232,6 +326,14 @@ function StateDiagram({
     </>
   );
 }
+function readPredictionState(key: string) {
+  try {
+    return JSON.parse(sessionStorage.getItem(key) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
 export function Prediction({
   topic,
   step,
@@ -245,22 +347,12 @@ export function Prediction({
 }) {
   const questions = useMemo(() => checkpoints(topic.id), [topic.id]);
   const q = questions[step - 1];
-  const storageKey = `prediction-v1:${userId}:${topic.id}:${step}`;
+  const storagePrefix = `prediction-v1:${userId}:${topic.id}:`;
+  const storageKey = storagePrefix + step;
   const [state, setState] = useState<{
     answer: string;
     result: "correct" | "wrong" | null;
-  }>(() => {
-    try {
-      return (
-        JSON.parse(sessionStorage.getItem(storageKey) ?? "null") ?? {
-          answer: "",
-          result: null,
-        }
-      );
-    } catch {
-      return { answer: "", result: null };
-    }
-  });
+  }>(() => readPredictionState(storageKey) ?? { answer: "", result: null });
   useEffect(() => {
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(state));
@@ -326,11 +418,49 @@ export function Prediction({
   }
   const correct =
     state.result === "correct" && matchesAnswer(state.answer, q.answer);
+  const completed =
+    step === questions.length &&
+    correct &&
+    questions.slice(0, -1).every((question, index) => {
+      const previous = readPredictionState(storagePrefix + (index + 1));
+      return (
+        previous?.result === "correct" &&
+        typeof previous.answer === "string" &&
+        matchesAnswer(previous.answer, question.answer)
+      );
+    });
   return (
     <>
-      <div className="page-heading">
-        <h1>{topic.title} · 다음 상태를 예측해요</h1>
-        <p>현재 상태를 관찰하고 다음 단계의 값을 직접 구성하세요.</p>
+      <div className="page-heading prediction-heading">
+        <div className="prediction-heading-copy">
+          <h1>{topic.title} · 다음 상태를 예측해요</h1>
+          <p>현재 상태를 관찰하고 다음 단계의 값을 직접 구성하세요.</p>
+        </div>
+        <div
+          className="actions prediction-navigation"
+          role="group"
+          aria-label="예측 단계 이동"
+        >
+          <button
+            className="secondary"
+            disabled={step === 1}
+            onClick={() => go(`/learn/${topic.id}/predict/${step - 1}`)}
+          >
+            이전 단계
+          </button>
+          <button
+            disabled={!correct || step === questions.length}
+            onClick={() => go(`/learn/${topic.id}/predict/${step + 1}`)}
+          >
+            다음 단계
+          </button>
+          <button
+            className="secondary"
+            onClick={() => go(`/learn/${topic.id}/concept`)}
+          >
+            개념 설명으로
+          </button>
+        </div>
       </div>
       <div className="prediction-layout">
         <section className="panel">
@@ -342,7 +472,14 @@ export function Prediction({
           <p className="caption">다음 단계에서 바뀔 {label}을 예측해 보세요.</p>
         </section>
         <section className="panel">
-          <h2>내가 만드는 다음 상태</h2>
+          <div className="prediction-card-heading">
+            <h2>내가 만드는 다음 상태</h2>
+            {completed && !mobile && (
+              <button onClick={() => go(`/learn/${topic.id}/code`)}>
+                코드 작성으로
+              </button>
+            )}
+          </div>
           <p>다음 단계의 {label}: 어떤 값이 될까요?</p>
           {q.field === "active" && (
             <p className="caption">
@@ -438,38 +575,11 @@ export function Prediction({
           )}
         </section>
       </div>
-      <div className="playback">
-        <button
-          className="secondary"
-          disabled={step === 1}
-          onClick={() => go(`/learn/${topic.id}/predict/${step - 1}`)}
-        >
-          이전 단계
-        </button>
-        <button
-          disabled={!correct || step === questions.length}
-          onClick={() => go(`/learn/${topic.id}/predict/${step + 1}`)}
-        >
-          다음 단계
-        </button>
-      </div>
-      <div className="lesson-next-screen">
-        <button
-          className="secondary"
-          onClick={() => go(`/learn/${topic.id}/concept`)}
-        >
-          개념 설명으로
-        </button>
-        {step === questions.length &&
-          correct &&
-          (mobile ? (
-            <button onClick={() => go("/learn")}>학습 완료 · 목록으로</button>
-          ) : (
-            <button onClick={() => go(`/learn/${topic.id}/code`)}>
-              코드 작성으로
-            </button>
-          ))}
-      </div>
+      {step === questions.length && correct && mobile && (
+        <div className="lesson-next-screen">
+          <button onClick={() => go("/learn")}>학습 완료 · 목록으로</button>
+        </div>
+      )}
     </>
   );
 }

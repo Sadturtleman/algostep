@@ -1,4 +1,5 @@
 import { track } from "./analytics.js";
+import { ChevronDown } from "lucide-react";
 import React, { useEffect, useId, useRef, useState } from "react";
 export type DiagramNode = {
   id: string;
@@ -134,20 +135,25 @@ export function DiagramCanvas({
   return (
     <div className="diagram-canvas">
       <div className="diagram-toolbar">
-        <span>배치</span>
-        <select
-          aria-label={`${label} 배치`}
-          value={layout}
-          onChange={(e) => {
-            track("VISUALIZATION_CONTROL", { action: "layout" });
-            setLayout(e.target.value);
-            setMoved({});
-          }}
-        >
-          <option value="auto">자동</option>
-          <option value="circle">원형</option>
-          <option value="grid">격자</option>
-        </select>
+        <label>
+          배치
+          <span className="diagram-layout-select">
+            <select
+              aria-label={`${label} 배치`}
+              value={layout}
+              onChange={(e) => {
+                track("VISUALIZATION_CONTROL", { action: "layout" });
+                setLayout(e.target.value);
+                setMoved({});
+              }}
+            >
+              <option value="auto">자동</option>
+              <option value="circle">원형</option>
+              <option value="grid">격자</option>
+            </select>
+            <ChevronDown size={16} aria-hidden="true" />
+          </span>
+        </label>
         <button
           className="secondary"
           onClick={() => {
