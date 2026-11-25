@@ -696,12 +696,12 @@ function App() {
     execution?.snapshot_source_hash,
     execution?.snapshot_language,
   );
-  const lineCount = useMemo(() => source.split(/\r\n|\r|\n/).length, [source]);
+  const sourceLines = useMemo(() => source.split(/\r\n|\r|\n/), [source]);
   const frameLine = selectedTest?.trace?.[step]?.line;
   const line =
     Number.isInteger(frameLine) &&
     frameLine >= 1 &&
-    (sourceStatus !== "match" || frameLine <= lineCount)
+    (sourceStatus !== "match" || frameLine <= sourceLines.length)
       ? frameLine
       : null;
   const errorTitle =
@@ -1647,6 +1647,12 @@ function App() {
                         line={line}
                         sourceStatus={sourceStatus}
                         trace={selectedTest?.trace ?? []}
+                        sourceLine={
+                          sourceStatus === "match" && line
+                            ? sourceLines[line - 1]
+                            : undefined
+                        }
+                        test={selectedTest}
                         topic={problem.topic_id}
                         truncated={selectedTest?.traceTruncated}
                       />

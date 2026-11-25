@@ -99,8 +99,8 @@ test("graph and tree nodes accept mouse and keyboard answers; advanced state fie
       const node = page.locator(
         `[aria-label="다음 상태 선택"] .diagram-node[data-node-id="${q.answer}"]`,
       );
-      await node.focus();
-      await node.press("Enter");
+      if (topic === "bfs") await node.click();
+      else await node.press("Enter");
     } else
       await page
         .getByRole("textbox", { name: "다음 상태의 값" })
@@ -121,6 +121,85 @@ test("graph and tree nodes accept mouse and keyboard answers; advanced state fie
     });
   }
 });
+test("prediction array inserts into grid slots and can cancel a drag", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/learn/bubble-sort/predict/1");
+  const diagram = page.getByRole("img", { name: "배열 인덱스와 포인터" });
+  const first = diagram.locator('[data-node-id="0"]');
+  const second = diagram.locator('[data-node-id="1"]');
+  const third = diagram.locator('[data-node-id="2"]');
+  const firstSlot = await first.getAttribute("transform");
+  const secondSlot = await second.getAttribute("transform");
+  const thirdSlot = await third.getAttribute("transform");
+  await second.evaluate(
+    (node, endpoints) => {
+      const recordPosition = () => {
+        const transform = node.getAttribute("transform");
+        if (transform && !endpoints.includes(transform))
+          node.setAttribute("data-test-interpolated", "true");
+      };
+      new MutationObserver(recordPosition).observe(node, {
+        attributeFilter: ["transform"],
+      });
+    },
+    [firstSlot, secondSlot],
+  );
+  const drag = async () => {
+    await first.scrollIntoViewIfNeeded();
+    const start = (await first.boundingBox())!;
+    const end = (await third.boundingBox())!;
+    const position = () =>
+      first.evaluate((node: SVGGElement) => {
+        const matrix = node.transform.baseVal.getItem(0).matrix;
+        return {
+          x: matrix.e,
+          y: matrix.f,
+          scale: node.ownerSVGElement!.getScreenCTM()!.a,
+        };
+      });
+    const initial = await position();
+    await page.mouse.move(
+      start.x + start.width / 2,
+      start.y + start.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      start.x + start.width / 2 + 20,
+      start.y + start.height / 2 + 20,
+    );
+    await expect(first).toHaveClass(/dragging/);
+    const dragged = await position();
+    expect((dragged.x - initial.x) * initial.scale).toBeCloseTo(20, 0);
+    expect((dragged.y - initial.y) * initial.scale).toBeCloseTo(20, 0);
+    await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, {
+      steps: 6,
+    });
+    await expect(second).toHaveAttribute("transform", firstSlot!);
+    await expect(third).toHaveAttribute("transform", secondSlot!);
+  };
+  await drag();
+  await expect(second).toHaveAttribute("data-test-interpolated", "true");
+  await diagram.dispatchEvent("pointercancel", { pointerId: 1 });
+  await page.mouse.up();
+  await expect(first).toHaveAttribute("transform", firstSlot!);
+  await expect(second).toHaveAttribute("transform", secondSlot!);
+  await expect(third).toHaveAttribute("transform", thirdSlot!);
+
+  await drag();
+  await page.mouse.up();
+  await expect(first).toHaveAttribute("transform", thirdSlot!);
+  await first.press("ArrowDown");
+  await expect(first).toHaveAttribute("transform", "translate(315 175)");
+  const q = checkpoints("bubble-sort")[0];
+  await page
+    .getByRole("textbox", { name: "다음 상태의 값" })
+    .fill(answerText(q.answer));
+  await page.getByRole("button", { name: "정답 확인" }).click();
+  await expect(page.getByText("정답이에요!", { exact: true })).toBeVisible();
+});
+
 test("all prediction steps are solvable without leaking next-state explanations; mobile never creates a code record", async ({
   page,
 }) => {

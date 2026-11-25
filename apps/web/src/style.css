@@ -1318,6 +1318,33 @@ summary {
 .trace {
   padding: 12px 0;
 }
+.trace .section-heading {
+  margin-bottom: 8px;
+}
+.trace-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.trace-step strong {
+  color: var(--accent);
+}
+.trace-step p {
+  margin: 0;
+}
+.trace-state {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--subtle);
+}
+.trace-state p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
 .trace svg,
 .object-graph svg {
   width: 100%;
@@ -1406,9 +1433,21 @@ summary {
 .diagram-node:active {
   cursor: grabbing;
 }
-.diagram-node:focus .node {
+.diagram-node:focus .node,
+.diagram-node.dragging .node {
   stroke: var(--accent);
   stroke-width: 4;
+}
+.diagram-node.dragging {
+  cursor: grabbing;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 18%));
+}
+.diagram-drop-slot {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
 }
 .diagram-node text {
   pointer-events: none;
@@ -1513,6 +1552,21 @@ svg text {
   min-width: 100px;
   flex: 1;
   accent-color: var(--accent);
+}
+.trace .playback {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.trace .playback button {
+  gap: 4px;
+  padding-inline: 6px;
+  font-size: 13px;
+}
+.trace .playback input {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
 }
 .variables {
   max-height: 210px;
@@ -2277,16 +2331,49 @@ body:has(.mobile-navigation) footer {
 }
 
 .monaco-editor .trace-execution-line {
-  background: rgba(0, 135, 99, 0.16);
-}
-.monaco-editor .trace-execution-marker::before {
-  content: "▶";
-  color: #00654f;
-  font-size: 11px;
+  background: #dce4fb;
 }
 [data-theme="dark"] .monaco-editor .trace-execution-line {
-  background: rgba(71, 216, 170, 0.22);
+  background: #364b72;
 }
-[data-theme="dark"] .monaco-editor .trace-execution-marker::before {
-  color: #8bf1c9;
+
+.trace-array {
+  --compare-fill: #e0e9ff;
+  --after-fill: #d5f0e5;
+  --error-fill: #fae1e6;
+  --before-fill: #ffecc6;
+  --before-ink: #925900;
+}
+[data-theme="dark"] .trace-array {
+  --compare-fill: #243a68;
+  --after-fill: #1d4f47;
+  --error-fill: #562d3b;
+  --before-fill: #5c4b2a;
+  --before-ink: #ffcf7b;
+}
+.trace-array .node.active {
+  fill: var(--compare-fill);
+}
+.trace-array .node.visited {
+  fill: var(--after-fill);
+}
+.trace-array .node.pending-change {
+  fill: var(--before-fill);
+  stroke: var(--before-ink);
+}
+.trace-array .node.incorrect {
+  fill: var(--error-fill);
+  stroke: var(--danger);
+}
+.trace-array .node.active + text {
+  fill: var(--text);
+}
+.trace-array .diagram-legend .before-key {
+  color: var(--before-ink);
+}
+.trace-array .diagram-legend .after-key {
+  color: var(--success);
+}
+.trace-array .diagram-legend .error-key {
+  color: var(--danger);
 }
